@@ -1,0 +1,10 @@
+{{define "purchases/create.html"}}
+{{template "app_start" .}}
+<h2 class="mb-5 text-2xl font-bold">فاتورة شراء</h2>
+<form method="post" action="/purchases" class="rounded-lg border bg-white p-5" id="invoice-form"><input type="hidden" name="_csrf" value="{{.csrf}}">
+<div class="mb-4 grid gap-3 md:grid-cols-4"><select class="form-input" name="supplier_id">{{range .suppliers}}<option value="{{.ID}}">{{.Name}}</option>{{end}}</select><select class="form-input" name="payment_type"><option value="cash">نقدي</option><option value="credit">آجل</option></select><button type="button" class="btn-secondary" id="add-row">إضافة سطر</button></div>
+<div class="overflow-x-auto"><table class="min-w-full text-sm" id="invoice-table"><thead class="bg-slate-100"><tr><th>الصنف</th><th>الكمية</th><th>التكلفة</th><th>الإجمالي</th><th></th></tr></thead><tbody></tbody></table></div>
+<template id="row-template"><tr class="border-t"><td><select name="item_id[]" class="form-input item-select">{{range .items}}<option value="{{.ID}}" data-price="{{.PurchasePrice}}">{{.Name}} - {{.Code}}</option>{{end}}</select></td><td><input name="quantity[]" class="form-input qty" type="number" step="0.001" value="1"></td><td><input name="cost[]" class="form-input price" type="number" step="0.01"></td><td class="line-total p-3 font-bold">0.00</td><td><button type="button" class="btn-danger remove-row">حذف</button></td></tr></template>
+<div class="mt-5 grid gap-4 md:grid-cols-4"><div><label class="form-label">خصم</label><input name="discount" id="discount" class="form-input" type="number" step="0.01" value="0"></div><div><label class="form-label">ضريبة</label><input name="tax" id="tax" class="form-input" type="number" step="0.01" value="0"></div><div><label class="form-label">مدفوع</label><input name="paid_cash" id="paid_cash" class="form-input" type="number" step="0.01" value="0"></div><div class="rounded-md bg-slate-950 p-4 text-white"><span class="text-sm">الإجمالي</span><div class="text-2xl font-bold" id="grand-total">0.00</div></div></div><button class="btn-primary mt-5">حفظ</button></form><script src="/static/js/sales.js"></script>
+{{template "app_end" .}}
+{{end}}

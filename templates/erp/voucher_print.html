@@ -1,0 +1,6 @@
+{{define "erp/voucher_print.html"}}
+{{template "app_start" .}}
+<div class="mb-4 flex justify-between print:hidden"><h2 class="text-2xl font-bold">{{.title}}</h2><button onclick="window.print()" class="btn-primary">طباعة</button></div>
+<div class="rounded-lg border bg-white p-8 print:border-0"><h1 class="text-3xl font-bold">{{.title}}</h1><p class="mt-4 text-xl">Number: {{.number}}</p><p class="mt-10 border-t pt-6">Signature: ____________________</p></div>
+{{template "app_end" .}}
+{{end}}

@@ -1,0 +1,26 @@
+body { font-family: Tahoma, Arial, sans-serif; }
+th, td { padding: 0.75rem; text-align: right; }
+.nav-link { border-radius: 0.375rem; padding: 0.75rem 1rem; color: rgb(226 232 240); }
+.nav-link:hover { background: rgba(255,255,255,.08); color: white; }
+.form-label { display: block; margin-bottom: .35rem; font-size: .875rem; font-weight: 700; color: rgb(51 65 85); }
+.form-input { width: 100%; border: 1px solid rgb(203 213 225); border-radius: .375rem; padding: .65rem .75rem; outline: none; background: white; }
+.form-input:focus { border-color: rgb(16 185 129); box-shadow: 0 0 0 3px rgba(16,185,129,.15); }
+.btn-primary, .btn-secondary, .btn-light, .btn-danger { display: inline-flex; align-items: center; justify-content: center; border-radius: .375rem; padding: .6rem 1rem; font-weight: 700; font-size: .875rem; }
+.btn-primary { background: rgb(5 150 105); color: white; }
+.btn-primary:hover { background: rgb(4 120 87); }
+.btn-secondary { background: rgb(226 232 240); color: rgb(15 23 42); }
+.btn-light { background: rgb(241 245 249); color: rgb(15 23 42); }
+.btn-danger { background: rgb(254 226 226); color: rgb(185 28 28); }
+.metric-card { border: 1px solid rgb(226 232 240); border-radius: .5rem; background: white; padding: 1.25rem; }
+.metric-card span { display: block; color: rgb(100 116 139); font-size: .875rem; }
+.metric-card strong { display: block; margin-top: .4rem; font-size: 2rem; color: rgb(15 23 42); }
+.module-card { border: 1px solid; border-radius: .5rem; padding: 1.25rem; min-height: 9rem; }
+.module-card span { display: block; font-size: 1.15rem; font-weight: 800; }
+.module-card small { display: block; margin-top: .5rem; color: rgb(71 85 105); }
+.dark .metric-card, .dark .module-card, .dark form, .dark table, .dark .bg-white { background: rgb(15 23 42) !important; color: rgb(226 232 240); border-color: rgb(51 65 85); }
+.dark .form-input { background: rgb(2 6 23); color: rgb(226 232 240); border-color: rgb(71 85 105); }
+.dark .btn-secondary, .dark .btn-light { background: rgb(51 65 85); color: white; }
+@media print {
+  aside, header { display: none !important; }
+  main, section { padding: 0 !important; margin: 0 !important; max-width: none !important; }
+}

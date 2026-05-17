@@ -1,0 +1,64 @@
+{{define "head"}}
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{.appName}}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="/static/css/app.css">
+</head>
+{{end}}
+
+{{define "app_start"}}
+{{template "head" .}}
+<body class="bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
+  <div class="min-h-screen lg:flex">
+    <aside id="sidebar" class="bg-slate-950 text-white lg:w-72">
+      <div class="flex items-center justify-between border-b border-white/10 px-6 py-5">
+        <div>
+          <div class="text-lg font-bold">Haridy</div>
+          <div class="text-xs text-slate-300">Inventory Suite</div>
+        </div>
+      </div>
+      <nav class="grid gap-1 p-4 text-sm">
+        <a class="nav-link" href="/dashboard">لوحة التحكم</a>
+        <a class="nav-link" href="/items">المخزون</a>
+        <a class="nav-link" href="/sales">المبيعات</a>
+        <a class="nav-link" href="/customers">العملاء</a>
+        <a class="nav-link" href="/suppliers">الموردون</a>
+        <a class="nav-link" href="/purchases">المشتريات</a>
+        <a class="nav-link" href="/treasury">الخزينة</a>
+        <a class="nav-link" href="/warehouses">المخازن</a>
+        <a class="nav-link" href="/vouchers/receipt/new">سند قبض</a>
+        <a class="nav-link" href="/vouchers/payment/new">سند صرف</a>
+        <a class="nav-link" href="/reports">التقارير</a>
+      </nav>
+    </aside>
+    <main class="min-w-0 flex-1">
+      <header class="flex items-center justify-between border-b bg-white px-4 py-4 shadow-sm lg:px-8">
+        <div>
+          <div class="text-xs text-slate-500">نظام إدارة مؤسسة صغيرة</div>
+          <h1 class="text-xl font-bold">إدارة المخزون والمبيعات والخزينة</h1>
+        </div>
+        <div class="flex items-center gap-2">
+        <button type="button" class="btn-secondary" data-toggle-sidebar>القائمة</button>
+        <button type="button" class="btn-secondary" data-toggle-dark>الوضع</button>
+        <form method="post" action="/logout">
+          <input type="hidden" name="_csrf" value="{{.csrf}}">
+          <button class="rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700">خروج</button>
+        </form>
+        </div>
+      </header>
+      <section class="mx-auto max-w-7xl px-4 py-6 lg:px-8">
+        {{if .flash}}<div class="mb-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">{{.flash}}</div>{{end}}
+{{end}}
+
+{{define "app_end"}}
+      </section>
+    </main>
+  </div>
+  <script src="/static/js/ui.js"></script>
+</body>
+</html>
+{{end}}

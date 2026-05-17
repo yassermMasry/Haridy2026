@@ -1,0 +1,44 @@
+{{define "dashboard/index.html"}}
+{{template "app_start" .}}
+<div class="grid gap-4 md:grid-cols-4">
+  <div class="metric-card"><span>عدد الأصناف</span><strong>{{.stats.ItemsCount}}</strong></div>
+  <div class="metric-card"><span>عدد الفواتير</span><strong>{{.stats.InvoicesCount}}</strong></div>
+  <div class="metric-card"><span>رصيد الخزينة</span><strong>{{printf "%.2f" .stats.TreasuryTotal}}</strong></div>
+  <div class="metric-card"><span>إجمالي المبيعات</span><strong>{{printf "%.2f" .stats.SalesTotal}}</strong></div>
+</div>
+<div class="mt-4 grid gap-4 md:grid-cols-3">
+  <div class="metric-card"><span>العملاء</span><strong>{{.stats.CustomersCount}}</strong></div>
+  <div class="metric-card"><span>الموردون</span><strong>{{.stats.SuppliersCount}}</strong></div>
+  <div class="metric-card"><span>فواتير الشراء</span><strong>{{.stats.PurchasesCount}}</strong></div>
+</div>
+<div class="mt-6 rounded-lg border bg-white p-5">
+  <h2 class="mb-4 text-lg font-bold">رسم المبيعات</h2>
+  <canvas id="sales-chart" height="90"></canvas>
+</div>
+{{if .stats.Notifications}}
+<div class="mt-6 rounded-lg border bg-white p-5">
+  <h2 class="mb-4 text-lg font-bold">الإشعارات</h2>
+  <div class="grid gap-2">{{range .stats.Notifications}}<div class="rounded-md bg-amber-50 px-4 py-3 text-sm text-amber-900"><b>{{.Title}}</b><p>{{.Message}}</p></div>{{end}}</div>
+</div>
+{{end}}
+
+<div class="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-7">
+  <a class="module-card border-emerald-200 bg-emerald-50" href="/items"><span>المخزون</span><small>أصناف، باركود، تنبيهات</small></a>
+  <a class="module-card border-sky-200 bg-sky-50" href="/sales"><span>المبيعات</span><small>فواتير نقدية وطباعة</small></a>
+  <a class="module-card border-cyan-200 bg-cyan-50" href="/customers"><span>العملاء</span><small>أرصدة وكشوف حساب</small></a>
+  <a class="module-card border-orange-200 bg-orange-50" href="/suppliers"><span>الموردون</span><small>أرصدة ومدفوعات</small></a>
+  <a class="module-card border-rose-200 bg-rose-50" href="/purchases"><span>المشتريات</span><small>نقدي وآجل</small></a>
+  <a class="module-card border-amber-200 bg-amber-50" href="/treasury"><span>الخزينة</span><small>قبض وصرف وكشف حركة</small></a>
+  <a class="module-card border-violet-200 bg-violet-50" href="#"><span>التقارير</span><small>ملخصات قادمة</small></a>
+  <a class="module-card border-slate-200 bg-white" href="#"><span>الإعدادات</span><small>مستخدمون وصلاحيات</small></a>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+new Chart(document.getElementById('sales-chart'), {
+  type: 'bar',
+  data: { labels: ['المبيعات'], datasets: [{ label: 'الإجمالي', data: [{{printf "%.2f" .stats.SalesTotal}}], backgroundColor: '#059669' }] },
+  options: { responsive: true, plugins: { legend: { display: false } } }
+});
+</script>
+{{template "app_end" .}}
+{{end}}

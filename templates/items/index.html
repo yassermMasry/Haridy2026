@@ -1,0 +1,34 @@
+{{define "items/index.html"}}
+{{template "app_start" .}}
+<div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+  <h2 class="text-2xl font-bold">الأصناف</h2>
+  <a class="btn-primary" href="/items/new">إضافة صنف</a>
+</div>
+<form class="mt-4 flex gap-2" method="get">
+  <input class="form-input" name="q" value="{{.list.Query}}" placeholder="بحث بالاسم أو الكود أو الباركود">
+  <button class="btn-secondary">بحث</button>
+</form>
+{{if .alerts}}
+<div class="mt-4 rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+  <b>تنبيهات المخزون:</b>
+  {{range .alerts}}<span class="mx-1">{{.Name}} ({{.Quantity}})</span>{{end}}
+</div>
+{{end}}
+<div class="mt-5 overflow-x-auto rounded-lg border bg-white">
+  <table class="min-w-full text-sm">
+    <thead class="bg-slate-100 text-slate-600"><tr><th>الكود</th><th>الصنف</th><th>الباركود</th><th>الكمية</th><th>سعر البيع</th><th></th></tr></thead>
+    <tbody>
+      {{range .list.Items}}
+      <tr class="border-t">
+        <td>{{.Code}}</td><td>{{.Name}}</td><td>{{.Barcode}}</td><td>{{.Quantity}}</td><td>{{printf "%.2f" .SalePrice}}</td>
+        <td class="flex gap-2">
+          <a class="btn-light" href="/items/{{.ID}}/edit">تعديل</a>
+          <form method="post" action="/items/{{.ID}}/delete"><input type="hidden" name="_csrf" value="{{$.csrf}}"><button class="btn-danger">حذف</button></form>
+        </td>
+      </tr>
+      {{else}}<tr><td colspan="6" class="p-8 text-center text-slate-500">لا توجد أصناف</td></tr>{{end}}
+    </tbody>
+  </table>
+</div>
+{{template "app_end" .}}
+{{end}}

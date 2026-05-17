@@ -1,0 +1,17 @@
+{{define "items/form.html"}}
+{{template "app_start" .}}
+<h2 class="mb-5 text-2xl font-bold">بيانات الصنف</h2>
+<form method="post" action="{{.action}}" class="grid gap-4 rounded-lg border bg-white p-5 md:grid-cols-2">
+  <input type="hidden" name="_csrf" value="{{.csrf}}">
+  <div><label class="form-label">الاسم</label><input class="form-input" name="name" value="{{.item.Name}}" required></div>
+  <div><label class="form-label">الكود</label><input class="form-input" name="code" value="{{.item.Code}}" required></div>
+  <div><label class="form-label">الباركود</label><input class="form-input" name="barcode" value="{{.item.Barcode}}"></div>
+  <div><label class="form-label">التصنيف</label><select class="form-input" name="category_id"><option value="">بدون</option>{{range .categories}}<option value="{{.ID}}">{{.Name}}</option>{{end}}</select></div>
+  <div><label class="form-label">سعر الشراء</label><input class="form-input" name="purchase_price" type="number" step="0.01" value="{{.item.PurchasePrice}}"></div>
+  <div><label class="form-label">سعر البيع</label><input class="form-input" name="sale_price" type="number" step="0.01" value="{{.item.SalePrice}}"></div>
+  <div><label class="form-label">الكمية</label><input class="form-input" name="quantity" type="number" step="0.001" value="{{.item.Quantity}}"></div>
+  <div><label class="form-label">حد التنبيه</label><input class="form-input" name="minimum_stock" type="number" step="0.001" value="{{.item.MinimumStock}}"></div>
+  <div class="md:col-span-2 flex gap-2"><button class="btn-primary">حفظ</button><a class="btn-secondary" href="/items">رجوع</a></div>
+</form>
+{{template "app_end" .}}
+{{end}}

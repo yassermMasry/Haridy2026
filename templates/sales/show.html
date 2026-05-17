@@ -1,0 +1,10 @@
+{{define "sales/show.html"}}
+{{template "app_start" .}}
+<div class="mb-4 flex justify-between print:hidden"><h2 class="text-2xl font-bold">فاتورة {{.invoice.Number}}</h2><button onclick="window.print()" class="btn-primary">طباعة</button></div>
+<div class="rounded-lg border bg-white p-6 print:border-0">
+  <div class="mb-6 flex justify-between"><div><b>Haridy Inventory</b><p>{{.invoice.CreatedAt.Format "2006-01-02 15:04"}}</p></div><div class="text-left"><b>{{.invoice.Number}}</b><p>بيع نقدي</p></div></div>
+  <table class="min-w-full text-sm"><thead class="bg-slate-100"><tr><th>الصنف</th><th>الكمية</th><th>السعر</th><th>الإجمالي</th></tr></thead><tbody>{{range .invoice.Items}}<tr class="border-t"><td>{{.Item.Name}}</td><td>{{.Quantity}}</td><td>{{printf "%.2f" .UnitPrice}}</td><td>{{printf "%.2f" .Total}}</td></tr>{{end}}</tbody></table>
+  <div class="mt-5 grid justify-end gap-1 text-sm"><div>المجموع: {{printf "%.2f" .invoice.Subtotal}}</div><div>الخصم: {{printf "%.2f" .invoice.Discount}}</div><div>الضريبة: {{printf "%.2f" .invoice.Tax}}</div><div class="text-xl font-bold">الإجمالي: {{printf "%.2f" .invoice.Total}}</div></div>
+</div>
+{{template "app_end" .}}
+{{end}}

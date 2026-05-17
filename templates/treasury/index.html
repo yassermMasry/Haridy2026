@@ -1,0 +1,21 @@
+{{define "treasury/index.html"}}
+{{template "app_start" .}}
+<div class="grid gap-5 lg:grid-cols-3">
+  <form method="post" action="/treasury" class="rounded-lg border bg-white p-5">
+    <input type="hidden" name="_csrf" value="{{.csrf}}">
+    <h2 class="mb-4 text-xl font-bold">حركة خزينة</h2>
+    <label class="form-label">نوع العملية</label>
+    <select class="form-input" name="type"><option value="RECEIVE">قبض</option><option value="EXPENSE">صرف</option></select>
+    <label class="form-label mt-3">المبلغ</label><input class="form-input" name="amount" type="number" step="0.01" required>
+    <label class="form-label mt-3">الوصف</label><input class="form-input" name="description">
+    <button class="btn-primary mt-4">تسجيل</button>
+  </form>
+  <div class="lg:col-span-2">
+    <div class="mb-4 rounded-lg bg-slate-950 p-5 text-white"><span>الرصيد الحالي</span><div class="text-3xl font-bold">{{printf "%.2f" .treasury.Balance}}</div></div>
+    <div class="overflow-x-auto rounded-lg border bg-white">
+      <table class="min-w-full text-sm"><thead class="bg-slate-100"><tr><th>النوع</th><th>المبلغ</th><th>المرجع</th><th>الوصف</th><th>التاريخ</th></tr></thead><tbody>{{range .transactions}}<tr class="border-t"><td>{{.Type}}</td><td>{{printf "%.2f" .Amount}}</td><td>{{.Reference}}</td><td>{{.Description}}</td><td>{{.CreatedAt.Format "2006-01-02 15:04"}}</td></tr>{{else}}<tr><td colspan="5" class="p-8 text-center text-slate-500">لا توجد حركات</td></tr>{{end}}</tbody></table>
+    </div>
+  </div>
+</div>
+{{template "app_end" .}}
+{{end}}

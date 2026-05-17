@@ -1,0 +1,18 @@
+{{define "erp/warehouses.html"}}
+{{template "app_start" .}}
+<h2 class="mb-5 text-2xl font-bold">المخازن والتحويلات</h2>
+<div class="grid gap-5 lg:grid-cols-3">
+  <form method="post" action="/warehouses/transfer" class="rounded-lg border bg-white p-5">
+    <input type="hidden" name="_csrf" value="{{.csrf}}">
+    <label class="form-label">الصنف</label><select class="form-input" name="item_id">{{range .items}}<option value="{{.ID}}">{{.Name}}</option>{{end}}</select>
+    <label class="form-label mt-3">من مخزن</label><select class="form-input" name="from_warehouse_id">{{range .warehouses}}<option value="{{.ID}}">{{.Name}}</option>{{end}}</select>
+    <label class="form-label mt-3">إلى مخزن</label><select class="form-input" name="to_warehouse_id">{{range .warehouses}}<option value="{{.ID}}">{{.Name}}</option>{{end}}</select>
+    <label class="form-label mt-3">الكمية</label><input class="form-input" name="quantity" type="number" step="0.001" required>
+    <button class="btn-primary mt-4">تحويل</button>
+  </form>
+  <div class="lg:col-span-2 overflow-x-auto rounded-lg border bg-white">
+    <table class="min-w-full text-sm"><thead class="bg-slate-100"><tr><th>الكود</th><th>المخزن</th><th>الفرع</th></tr></thead><tbody>{{range .warehouses}}<tr class="border-t"><td>{{.Code}}</td><td>{{.Name}}</td><td>{{.Branch.Name}}</td></tr>{{end}}</tbody></table>
+  </div>
+</div>
+{{template "app_end" .}}
+{{end}}
