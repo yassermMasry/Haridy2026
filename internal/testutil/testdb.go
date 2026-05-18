@@ -1,7 +1,10 @@
 package testutil
 
 import (
+	"io"
+	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 
 	"haridy2026/internal/database"
@@ -10,6 +13,12 @@ import (
 	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
+)
+
+var (
+	baseDBOnce sync.Once
+	baseDBPath string
+	baseDBErr  error
 )
 
 type Fixture struct {
@@ -24,7 +33,14 @@ type Fixture struct {
 
 func NewFixture(t *testing.T) Fixture {
 	t.Helper()
-	db, err := gorm.Open(sqlite.Open(filepath.Join(t.TempDir(), "haridy-test.db")), &gorm.Config{Logger: logger.Default.LogMode(logger.Silent)})
+	if testing.Short() {
+		t.Skip("skipping database integration fixture in short mode")
+	}
+	path := filepath.Join(t.TempDir(), "haridy-test.db")
+	if err := copyBaseDB(t, path); err != nil {
+		t.Fatalf("copy test db: %v", err)
+	}
+	db, err := gorm.Open(sqlite.Open(path), &gorm.Config{Logger: logger.Default.LogMode(logger.Silent)})
 	if err != nil {
 		t.Fatalf("open test db: %v", err)
 	}
@@ -33,12 +49,6 @@ func NewFixture(t *testing.T) Fixture {
 		t.Fatalf("unwrap test db: %v", err)
 	}
 	t.Cleanup(func() { _ = sqlDB.Close() })
-	if err := database.AutoMigrate(db); err != nil {
-		t.Fatalf("migrate test db: %v", err)
-	}
-	if err := database.Seed(db); err != nil {
-		t.Fatalf("seed test db: %v", err)
-	}
 	var fx Fixture
 	fx.DB = db
 	mustFirst(t, db.Where("slug = ?", "demo").First(&fx.Tenant), "tenant")
@@ -52,6 +62,54 @@ func NewFixture(t *testing.T) Fixture {
 	}
 	fx.Treasury.Balance = 10000
 	return fx
+}
+
+func copyBaseDB(t *testing.T, dest string) error {
+	t.Helper()
+	baseDBOnce.Do(func() {
+		baseDBPath, baseDBErr = createBaseDB()
+	})
+	if baseDBErr != nil {
+		return baseDBErr
+	}
+	src, err := os.Open(baseDBPath)
+	if err != nil {
+		return err
+	}
+	defer src.Close()
+	out, err := os.Create(dest)
+	if err != nil {
+		return err
+	}
+	if _, err := io.Copy(out, src); err != nil {
+		_ = out.Close()
+		return err
+	}
+	return out.Close()
+}
+
+func createBaseDB() (string, error) {
+	dir, err := os.MkdirTemp("", "haridy-base-testdb-*")
+	if err != nil {
+		return "", err
+	}
+	path := filepath.Join(dir, "base.db")
+	db, err := gorm.Open(sqlite.Open(path), &gorm.Config{Logger: logger.Default.LogMode(logger.Silent)})
+	if err != nil {
+		return "", err
+	}
+	sqlDB, err := db.DB()
+	if err != nil {
+		return "", err
+	}
+	defer sqlDB.Close()
+	if err := database.AutoMigrate(db); err != nil {
+		return "", err
+	}
+	if err := database.Seed(db); err != nil {
+		return "", err
+	}
+	return path, nil
 }
 
 func mustFirst(t *testing.T, tx *gorm.DB, label string) {
