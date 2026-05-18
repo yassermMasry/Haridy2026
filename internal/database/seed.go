@@ -1,6 +1,8 @@
 package database
 
 import (
+	"time"
+
 	"haridy2026/internal/models"
 
 	"golang.org/x/crypto/bcrypt"
@@ -8,12 +10,32 @@ import (
 )
 
 func Seed(db *gorm.DB) error {
+	var plan models.Plan
+	if err := db.Where("code = ?", "starter").FirstOrCreate(&plan, models.Plan{Code: "starter", Name: "Starter", PriceMonthly: 49, MaxUsers: 5, MaxBranches: 1, Features: "sales,purchases,inventory,treasury", IsActive: true}).Error; err != nil {
+		return err
+	}
+	var proPlan models.Plan
+	if err := db.Where("code = ?", "pro").FirstOrCreate(&proPlan, models.Plan{Code: "pro", Name: "Professional", PriceMonthly: 149, MaxUsers: 25, MaxBranches: 5, Features: "all", IsActive: true}).Error; err != nil {
+		return err
+	}
+	var tenant models.Tenant
+	if err := db.Where("slug = ?", "demo").FirstOrCreate(&tenant, models.Tenant{Name: "Demo Company", Slug: "demo", Subdomain: "demo", Status: "trial"}).Error; err != nil {
+		return err
+	}
+	var setting models.CompanySetting
+	if err := db.Where("tenant_id = ?", tenant.ID).FirstOrCreate(&setting, models.CompanySetting{TenantID: tenant.ID, LegalName: "Demo Company LLC", TaxNumber: "VAT-DEMO-001", Currency: "EGP", TimeZone: "Africa/Cairo"}).Error; err != nil {
+		return err
+	}
+	var sub models.Subscription
+	if err := db.Where("tenant_id = ?", tenant.ID).FirstOrCreate(&sub, models.Subscription{TenantID: tenant.ID, PlanID: plan.ID, Status: "trial", StartsAt: time.Now()}).Error; err != nil {
+		return err
+	}
 	var branch models.Branch
-	if err := db.Where("code = ?", "MAIN").FirstOrCreate(&branch, models.Branch{Name: "Main Branch", Code: "MAIN", IsActive: true}).Error; err != nil {
+	if err := db.Where("code = ?", "MAIN").FirstOrCreate(&branch, models.Branch{TenantID: &tenant.ID, Name: "Main Branch", Code: "MAIN", IsActive: true}).Error; err != nil {
 		return err
 	}
 	var warehouse models.Warehouse
-	if err := db.Where("code = ?", "MAIN-WH").FirstOrCreate(&warehouse, models.Warehouse{Name: "Main Warehouse", Code: "MAIN-WH", BranchID: branch.ID, IsActive: true}).Error; err != nil {
+	if err := db.Where("code = ?", "MAIN-WH").FirstOrCreate(&warehouse, models.Warehouse{TenantID: &tenant.ID, Name: "Main Warehouse", Code: "MAIN-WH", BranchID: branch.ID, IsActive: true}).Error; err != nil {
 		return err
 	}
 
@@ -23,6 +45,7 @@ func Seed(db *gorm.DB) error {
 	}
 	var admin models.User
 	if err := db.Where("username = ?", "admin").FirstOrCreate(&admin, models.User{
+		TenantID:        &tenant.ID,
 		Username:        "admin",
 		PasswordHash:    string(hash),
 		Role:            models.RoleAdmin,
@@ -30,22 +53,26 @@ func Seed(db *gorm.DB) error {
 	}).Error; err != nil {
 		return err
 	}
+	var tenantUser models.TenantUser
+	if err := db.Where("tenant_id = ? AND user_id = ?", tenant.ID, admin.ID).FirstOrCreate(&tenantUser, models.TenantUser{TenantID: tenant.ID, UserID: admin.ID, IsOwner: true}).Error; err != nil {
+		return err
+	}
 
 	var treasury models.Treasury
-	if err := db.Where("name = ?", "الخزينة الرئيسية").FirstOrCreate(&treasury, models.Treasury{Name: "الخزينة الرئيسية"}).Error; err != nil {
+	if err := db.Where("name = ?", "Main Treasury").FirstOrCreate(&treasury, models.Treasury{TenantID: &tenant.ID, BranchID: &branch.ID, Name: "Main Treasury"}).Error; err != nil {
 		return err
 	}
 	var category models.ItemCategory
-	if err := db.Where("name = ?", "عام").FirstOrCreate(&category, models.ItemCategory{Name: "عام"}).Error; err != nil {
+	if err := db.Where("name = ?", "General").FirstOrCreate(&category, models.ItemCategory{TenantID: &tenant.ID, Name: "General"}).Error; err != nil {
 		return err
 	}
 	accounts := []models.ChartOfAccount{
-		{Code: "1000", Name: "الخزينة", Type: models.AccountAsset},
-		{Code: "1100", Name: "المخزون", Type: models.AccountAsset},
-		{Code: "1200", Name: "العملاء", Type: models.AccountAsset},
-		{Code: "2000", Name: "الموردين", Type: models.AccountLiability},
-		{Code: "4000", Name: "المبيعات", Type: models.AccountRevenue},
-		{Code: "5000", Name: "المشتريات", Type: models.AccountExpense},
+		{TenantID: &tenant.ID, Code: "1000", Name: "Cash", Type: models.AccountAsset},
+		{TenantID: &tenant.ID, Code: "1100", Name: "Inventory", Type: models.AccountAsset},
+		{TenantID: &tenant.ID, Code: "1200", Name: "Accounts Receivable", Type: models.AccountAsset},
+		{TenantID: &tenant.ID, Code: "2000", Name: "Accounts Payable", Type: models.AccountLiability},
+		{TenantID: &tenant.ID, Code: "4000", Name: "Sales", Type: models.AccountRevenue},
+		{TenantID: &tenant.ID, Code: "5000", Name: "Purchases", Type: models.AccountExpense},
 	}
 	for _, account := range accounts {
 		var existing models.ChartOfAccount
@@ -87,19 +114,38 @@ func Seed(db *gorm.DB) error {
 		return err
 	}
 	var demoCustomer models.Customer
-	if err := db.Where("name = ?", "Demo Customer").FirstOrCreate(&demoCustomer, models.Customer{Name: "Demo Customer", Phone: "01000000000", CreditLimit: 10000, BranchID: &branch.ID}).Error; err != nil {
+	if err := db.Where("name = ?", "Demo Customer").FirstOrCreate(&demoCustomer, models.Customer{TenantID: &tenant.ID, Name: "Demo Customer", Phone: "01000000000", CreditLimit: 10000, BranchID: &branch.ID}).Error; err != nil {
 		return err
 	}
 	var demoSupplier models.Supplier
-	if err := db.Where("name = ?", "Demo Supplier").FirstOrCreate(&demoSupplier, models.Supplier{Name: "Demo Supplier", Phone: "01111111111", BranchID: &branch.ID}).Error; err != nil {
+	if err := db.Where("name = ?", "Demo Supplier").FirstOrCreate(&demoSupplier, models.Supplier{TenantID: &tenant.ID, Name: "Demo Supplier", Phone: "01111111111", BranchID: &branch.ID}).Error; err != nil {
 		return err
 	}
 	var demoItem models.Item
-	if err := db.Where("code = ?", "DEMO-001").FirstOrCreate(&demoItem, models.Item{Name: "Demo Item", Code: "DEMO-001", Barcode: "622000000001", PurchasePrice: 50, SalePrice: 75, Quantity: 20, MinimumStock: 5, CategoryID: &category.ID}).Error; err != nil {
+	if err := db.Where("code = ?", "DEMO-001").FirstOrCreate(&demoItem, models.Item{TenantID: &tenant.ID, Name: "Demo Item", Code: "DEMO-001", Barcode: "622000000001", PurchasePrice: 50, SalePrice: 75, Quantity: 20, MinimumStock: 5, CategoryID: &category.ID}).Error; err != nil {
 		return err
 	}
 	var balance models.ItemWarehouseBalance
 	if err := db.Where("item_id = ? AND warehouse_id = ?", demoItem.ID, warehouse.ID).FirstOrCreate(&balance, models.ItemWarehouseBalance{ItemID: demoItem.ID, WarehouseID: warehouse.ID, Quantity: demoItem.Quantity}).Error; err != nil {
+		return err
+	}
+	var pipeline models.SalesPipeline
+	if err := db.Where("tenant_id = ? AND name = ?", tenant.ID, "Default Pipeline").FirstOrCreate(&pipeline, models.SalesPipeline{TenantID: tenant.ID, Name: "Default Pipeline"}).Error; err != nil {
+		return err
+	}
+	for i, stage := range []string{"Lead", "Qualified", "Proposal", "Won"} {
+		var existing models.SalesPipelineStage
+		if err := db.Where("pipeline_id = ? AND name = ?", pipeline.ID, stage).FirstOrCreate(&existing, models.SalesPipelineStage{PipelineID: pipeline.ID, Name: stage, SortOrder: i + 1}).Error; err != nil {
+			return err
+		}
+	}
+	var fy models.FiscalYear
+	now := time.Now()
+	if err := db.Where("tenant_id = ? AND name = ?", tenant.ID, now.Format("2006")).FirstOrCreate(&fy, models.FiscalYear{TenantID: tenant.ID, Name: now.Format("2006"), StartDate: time.Date(now.Year(), 1, 1, 0, 0, 0, 0, time.UTC), EndDate: time.Date(now.Year(), 12, 31, 23, 59, 59, 0, time.UTC)}).Error; err != nil {
+		return err
+	}
+	var license models.LicenseKey
+	if err := db.Where("key = ?", "DEMO-LICENSE").FirstOrCreate(&license, models.LicenseKey{TenantID: &tenant.ID, Key: "DEMO-LICENSE", Status: "active"}).Error; err != nil {
 		return err
 	}
 	return nil

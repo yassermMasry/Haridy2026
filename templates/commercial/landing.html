@@ -1,0 +1,32 @@
+{{define "commercial/landing.html"}}
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Haridy ERP SaaS</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-950 text-white">
+  <main class="min-h-screen">
+    <section class="mx-auto grid min-h-screen max-w-7xl content-center gap-8 px-6 py-12">
+      <div class="max-w-3xl">
+        <p class="text-emerald-300">Commercial SaaS ERP Platform</p>
+        <h1 class="mt-4 text-5xl font-black leading-tight">Haridy ERP</h1>
+        <p class="mt-5 text-lg text-slate-300">Multi-tenant ERP for inventory, sales, accounting, CRM, HR, e-invoicing, approvals, and mobile APIs.</p>
+        <div class="mt-8 flex gap-3">
+          <a href="/onboarding" class="rounded-md bg-emerald-500 px-5 py-3 font-bold text-slate-950">Start trial</a>
+          <a href="/login" class="rounded-md border border-white/20 px-5 py-3 font-bold">Login</a>
+        </div>
+      </div>
+      <div class="grid gap-3 md:grid-cols-4">
+        <div class="rounded-lg bg-white/10 p-4">Multi tenant</div>
+        <div class="rounded-lg bg-white/10 p-4">Financial statements</div>
+        <div class="rounded-lg bg-white/10 p-4">Workflow approvals</div>
+        <div class="rounded-lg bg-white/10 p-4">Flutter-ready API</div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
+{{end}}

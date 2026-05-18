@@ -1,0 +1,100 @@
+CREATE TABLE IF NOT EXISTS tenants (
+  id BIGSERIAL PRIMARY KEY,
+  name VARCHAR(160) NOT NULL,
+  slug VARCHAR(80) NOT NULL UNIQUE,
+  domain VARCHAR(180),
+  subdomain VARCHAR(80) UNIQUE,
+  status VARCHAR(30) NOT NULL DEFAULT 'trial',
+  created_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ,
+  deleted_at TIMESTAMPTZ
+);
+
+CREATE TABLE IF NOT EXISTS plans (
+  id BIGSERIAL PRIMARY KEY,
+  code VARCHAR(50) NOT NULL UNIQUE,
+  name VARCHAR(120) NOT NULL,
+  price_monthly NUMERIC(14,2) NOT NULL DEFAULT 0,
+  max_users INT NOT NULL DEFAULT 5,
+  max_branches INT NOT NULL DEFAULT 1,
+  features TEXT,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ
+);
+
+CREATE TABLE IF NOT EXISTS subscriptions (
+  id BIGSERIAL PRIMARY KEY,
+  tenant_id BIGINT NOT NULL REFERENCES tenants(id),
+  plan_id BIGINT NOT NULL REFERENCES plans(id),
+  status VARCHAR(30) NOT NULL,
+  starts_at TIMESTAMPTZ,
+  ends_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ
+);
+
+CREATE TABLE IF NOT EXISTS tenant_users (
+  id BIGSERIAL PRIMARY KEY,
+  tenant_id BIGINT NOT NULL REFERENCES tenants(id),
+  user_id BIGINT NOT NULL REFERENCES users(id),
+  is_owner BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at TIMESTAMPTZ,
+  UNIQUE(tenant_id, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS company_settings (
+  id BIGSERIAL PRIMARY KEY,
+  tenant_id BIGINT NOT NULL UNIQUE REFERENCES tenants(id),
+  legal_name VARCHAR(180),
+  tax_number VARCHAR(80),
+  logo_url VARCHAR(255),
+  currency VARCHAR(10) NOT NULL DEFAULT 'EGP',
+  time_zone VARCHAR(80) NOT NULL DEFAULT 'Africa/Cairo',
+  address VARCHAR(255),
+  created_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ
+);
+
+ALTER TABLE users ADD COLUMN IF NOT EXISTS tenant_id BIGINT REFERENCES tenants(id);
+ALTER TABLE branches ADD COLUMN IF NOT EXISTS tenant_id BIGINT REFERENCES tenants(id);
+ALTER TABLE warehouses ADD COLUMN IF NOT EXISTS tenant_id BIGINT REFERENCES tenants(id);
+ALTER TABLE item_categories ADD COLUMN IF NOT EXISTS tenant_id BIGINT REFERENCES tenants(id);
+ALTER TABLE items ADD COLUMN IF NOT EXISTS tenant_id BIGINT REFERENCES tenants(id);
+ALTER TABLE stock_movements ADD COLUMN IF NOT EXISTS tenant_id BIGINT REFERENCES tenants(id);
+ALTER TABLE sales_invoices ADD COLUMN IF NOT EXISTS tenant_id BIGINT REFERENCES tenants(id);
+ALTER TABLE purchase_invoices ADD COLUMN IF NOT EXISTS tenant_id BIGINT REFERENCES tenants(id);
+ALTER TABLE treasuries ADD COLUMN IF NOT EXISTS tenant_id BIGINT REFERENCES tenants(id);
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS tenant_id BIGINT REFERENCES tenants(id);
+ALTER TABLE suppliers ADD COLUMN IF NOT EXISTS tenant_id BIGINT REFERENCES tenants(id);
+ALTER TABLE chart_of_accounts ADD COLUMN IF NOT EXISTS tenant_id BIGINT REFERENCES tenants(id);
+ALTER TABLE journal_entries ADD COLUMN IF NOT EXISTS tenant_id BIGINT REFERENCES tenants(id);
+
+CREATE TABLE IF NOT EXISTS fiscal_years (id BIGSERIAL PRIMARY KEY, tenant_id BIGINT NOT NULL REFERENCES tenants(id), name VARCHAR(80), start_date TIMESTAMPTZ, end_date TIMESTAMPTZ, is_closed BOOLEAN NOT NULL DEFAULT FALSE, created_at TIMESTAMPTZ, updated_at TIMESTAMPTZ);
+CREATE TABLE IF NOT EXISTS financial_periods (id BIGSERIAL PRIMARY KEY, tenant_id BIGINT NOT NULL REFERENCES tenants(id), fiscal_year_id BIGINT NOT NULL REFERENCES fiscal_years(id), name VARCHAR(80), start_date TIMESTAMPTZ, end_date TIMESTAMPTZ, is_closed BOOLEAN NOT NULL DEFAULT FALSE, created_at TIMESTAMPTZ, updated_at TIMESTAMPTZ);
+CREATE TABLE IF NOT EXISTS opening_balances (id BIGSERIAL PRIMARY KEY, tenant_id BIGINT NOT NULL REFERENCES tenants(id), account_id BIGINT NOT NULL REFERENCES chart_of_accounts(id), debit NUMERIC(14,2) NOT NULL DEFAULT 0, credit NUMERIC(14,2) NOT NULL DEFAULT 0, fiscal_year_id BIGINT NOT NULL REFERENCES fiscal_years(id), created_at TIMESTAMPTZ);
+CREATE TABLE IF NOT EXISTS closing_entries (id BIGSERIAL PRIMARY KEY, tenant_id BIGINT NOT NULL REFERENCES tenants(id), fiscal_year_id BIGINT NOT NULL REFERENCES fiscal_years(id), journal_entry_id BIGINT NOT NULL REFERENCES journal_entries(id), created_at TIMESTAMPTZ);
+
+CREATE TABLE IF NOT EXISTS e_invoices (id BIGSERIAL PRIMARY KEY, tenant_id BIGINT NOT NULL REFERENCES tenants(id), invoice_id BIGINT NOT NULL REFERENCES sales_invoices(id), uuid VARCHAR(80) NOT NULL UNIQUE, qr_payload TEXT, xml_body TEXT, vat_amount NUMERIC(14,2) NOT NULL DEFAULT 0, status VARCHAR(30) NOT NULL DEFAULT 'draft', created_at TIMESTAMPTZ, updated_at TIMESTAMPTZ);
+
+CREATE TABLE IF NOT EXISTS approval_workflows (id BIGSERIAL PRIMARY KEY, tenant_id BIGINT NOT NULL REFERENCES tenants(id), name VARCHAR(120) NOT NULL, module VARCHAR(50) NOT NULL, is_active BOOLEAN NOT NULL DEFAULT TRUE, created_at TIMESTAMPTZ, updated_at TIMESTAMPTZ);
+CREATE TABLE IF NOT EXISTS approval_steps (id BIGSERIAL PRIMARY KEY, workflow_id BIGINT NOT NULL REFERENCES approval_workflows(id), step_order INT NOT NULL, role_id BIGINT, user_id BIGINT REFERENCES users(id), name VARCHAR(120) NOT NULL, created_at TIMESTAMPTZ);
+CREATE TABLE IF NOT EXISTS approval_logs (id BIGSERIAL PRIMARY KEY, tenant_id BIGINT NOT NULL REFERENCES tenants(id), workflow_id BIGINT NOT NULL REFERENCES approval_workflows(id), entity_type VARCHAR(80) NOT NULL, entity_id BIGINT NOT NULL, step_id BIGINT REFERENCES approval_steps(id), status VARCHAR(30) NOT NULL, comment VARCHAR(500), user_id BIGINT NOT NULL REFERENCES users(id), created_at TIMESTAMPTZ);
+
+CREATE TABLE IF NOT EXISTS item_serials (id BIGSERIAL PRIMARY KEY, tenant_id BIGINT NOT NULL REFERENCES tenants(id), item_id BIGINT NOT NULL REFERENCES items(id), serial_number VARCHAR(120) NOT NULL UNIQUE, status VARCHAR(30) NOT NULL DEFAULT 'available', created_at TIMESTAMPTZ);
+CREATE TABLE IF NOT EXISTS item_batches (id BIGSERIAL PRIMARY KEY, tenant_id BIGINT NOT NULL REFERENCES tenants(id), item_id BIGINT NOT NULL REFERENCES items(id), batch_no VARCHAR(120) NOT NULL, expiry_date TIMESTAMPTZ, quantity NUMERIC(14,3) NOT NULL DEFAULT 0, unit_cost NUMERIC(14,2) NOT NULL DEFAULT 0, created_at TIMESTAMPTZ);
+CREATE TABLE IF NOT EXISTS stock_valuation_layers (id BIGSERIAL PRIMARY KEY, tenant_id BIGINT NOT NULL REFERENCES tenants(id), item_id BIGINT NOT NULL REFERENCES items(id), method VARCHAR(20) NOT NULL, quantity NUMERIC(14,3) NOT NULL, unit_cost NUMERIC(14,2) NOT NULL, remaining_quantity NUMERIC(14,3) NOT NULL, created_at TIMESTAMPTZ);
+
+CREATE TABLE IF NOT EXISTS crm_activities (id BIGSERIAL PRIMARY KEY, tenant_id BIGINT NOT NULL REFERENCES tenants(id), customer_id BIGINT NOT NULL REFERENCES customers(id), type VARCHAR(40) NOT NULL, subject VARCHAR(160) NOT NULL, notes VARCHAR(1000), due_at TIMESTAMPTZ, done_at TIMESTAMPTZ, user_id BIGINT REFERENCES users(id), created_at TIMESTAMPTZ);
+CREATE TABLE IF NOT EXISTS sales_pipelines (id BIGSERIAL PRIMARY KEY, tenant_id BIGINT NOT NULL REFERENCES tenants(id), name VARCHAR(120) NOT NULL, created_at TIMESTAMPTZ);
+CREATE TABLE IF NOT EXISTS sales_pipeline_stages (id BIGSERIAL PRIMARY KEY, pipeline_id BIGINT NOT NULL REFERENCES sales_pipelines(id), name VARCHAR(120) NOT NULL, sort_order INT NOT NULL DEFAULT 0);
+CREATE TABLE IF NOT EXISTS deals (id BIGSERIAL PRIMARY KEY, tenant_id BIGINT NOT NULL REFERENCES tenants(id), customer_id BIGINT NOT NULL REFERENCES customers(id), stage_id BIGINT NOT NULL REFERENCES sales_pipeline_stages(id), title VARCHAR(160) NOT NULL, value NUMERIC(14,2) NOT NULL DEFAULT 0, status VARCHAR(30) NOT NULL DEFAULT 'open', expected_close_at TIMESTAMPTZ, created_at TIMESTAMPTZ, updated_at TIMESTAMPTZ);
+
+CREATE TABLE IF NOT EXISTS employees (id BIGSERIAL PRIMARY KEY, tenant_id BIGINT NOT NULL REFERENCES tenants(id), branch_id BIGINT REFERENCES branches(id), name VARCHAR(160) NOT NULL, email VARCHAR(160), phone VARCHAR(40), job_title VARCHAR(120), base_salary NUMERIC(14,2) NOT NULL DEFAULT 0, is_active BOOLEAN NOT NULL DEFAULT TRUE, created_at TIMESTAMPTZ, updated_at TIMESTAMPTZ);
+CREATE TABLE IF NOT EXISTS attendance_records (id BIGSERIAL PRIMARY KEY, tenant_id BIGINT NOT NULL REFERENCES tenants(id), employee_id BIGINT NOT NULL REFERENCES employees(id), work_date TIMESTAMPTZ, check_in TIMESTAMPTZ, check_out TIMESTAMPTZ, status VARCHAR(30) NOT NULL DEFAULT 'present', created_at TIMESTAMPTZ);
+CREATE TABLE IF NOT EXISTS payroll_runs (id BIGSERIAL PRIMARY KEY, tenant_id BIGINT NOT NULL REFERENCES tenants(id), period_name VARCHAR(80) NOT NULL, gross_total NUMERIC(14,2) NOT NULL DEFAULT 0, net_total NUMERIC(14,2) NOT NULL DEFAULT 0, status VARCHAR(30) NOT NULL DEFAULT 'draft', created_at TIMESTAMPTZ);
+
+CREATE TABLE IF NOT EXISTS mobile_devices (id BIGSERIAL PRIMARY KEY, tenant_id BIGINT NOT NULL REFERENCES tenants(id), user_id BIGINT NOT NULL REFERENCES users(id), platform VARCHAR(30) NOT NULL, push_token VARCHAR(255), last_seen_at TIMESTAMPTZ, created_at TIMESTAMPTZ);
+CREATE TABLE IF NOT EXISTS refresh_tokens (id BIGSERIAL PRIMARY KEY, tenant_id BIGINT REFERENCES tenants(id), user_id BIGINT NOT NULL REFERENCES users(id), token_hash VARCHAR(120) NOT NULL UNIQUE, expires_at TIMESTAMPTZ, revoked_at TIMESTAMPTZ, created_at TIMESTAMPTZ);
+CREATE TABLE IF NOT EXISTS license_keys (id BIGSERIAL PRIMARY KEY, tenant_id BIGINT REFERENCES tenants(id), key VARCHAR(120) NOT NULL UNIQUE, status VARCHAR(30) NOT NULL DEFAULT 'active', expires_at TIMESTAMPTZ, created_at TIMESTAMPTZ);
+CREATE TABLE IF NOT EXISTS system_updates (id BIGSERIAL PRIMARY KEY, version VARCHAR(40) NOT NULL UNIQUE, notes TEXT, status VARCHAR(30) NOT NULL DEFAULT 'available', created_at TIMESTAMPTZ);

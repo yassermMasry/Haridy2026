@@ -1,0 +1,19 @@
+{{define "commercial/onboarding.html"}}
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Onboarding</title><script src="https://cdn.tailwindcss.com"></script></head>
+<body class="min-h-screen bg-slate-100">
+<main class="grid min-h-screen place-items-center px-4">
+  <form method="post" action="/onboarding" class="w-full max-w-lg rounded-lg bg-white p-8 shadow">
+    <input type="hidden" name="_csrf" value="{{.csrf}}">
+    <h1 class="text-3xl font-black">Create company</h1>
+    <input class="mt-5 w-full rounded-md border p-3" name="company_name" placeholder="Company name" required>
+    <input class="mt-3 w-full rounded-md border p-3" name="slug" placeholder="subdomain slug" required>
+    <input class="mt-3 w-full rounded-md border p-3" name="username" placeholder="owner username" required>
+    <input class="mt-3 w-full rounded-md border p-3" name="password" type="password" placeholder="password" required>
+    <button class="mt-5 rounded-md bg-emerald-600 px-5 py-3 font-bold text-white">Create tenant</button>
+  </form>
+</main>
+</body>
+</html>
+{{end}}

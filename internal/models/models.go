@@ -15,6 +15,7 @@ const (
 
 type User struct {
 	ID              uint   `gorm:"primaryKey"`
+	TenantID        *uint  `gorm:"index"`
 	Username        string `gorm:"size:80;uniqueIndex;not null"`
 	PasswordHash    string `gorm:"size:255;not null"`
 	Role            Role   `gorm:"type:varchar(20);not null;index"`
@@ -28,6 +29,7 @@ type User struct {
 
 type Branch struct {
 	ID        uint   `gorm:"primaryKey"`
+	TenantID  *uint  `gorm:"index"`
 	Name      string `gorm:"size:140;uniqueIndex;not null"`
 	Code      string `gorm:"size:40;uniqueIndex;not null"`
 	Address   string `gorm:"size:255"`
@@ -38,8 +40,9 @@ type Branch struct {
 }
 
 type Warehouse struct {
-	ID        uint `gorm:"primaryKey"`
-	BranchID  uint `gorm:"not null;index"`
+	ID        uint  `gorm:"primaryKey"`
+	TenantID  *uint `gorm:"index"`
+	BranchID  uint  `gorm:"not null;index"`
 	Branch    Branch
 	Name      string `gorm:"size:140;not null;index"`
 	Code      string `gorm:"size:40;uniqueIndex;not null"`
@@ -51,6 +54,7 @@ type Warehouse struct {
 
 type ItemCategory struct {
 	ID        uint   `gorm:"primaryKey"`
+	TenantID  *uint  `gorm:"index"`
 	Name      string `gorm:"size:120;uniqueIndex;not null"`
 	Items     []Item
 	CreatedAt time.Time
@@ -60,6 +64,7 @@ type ItemCategory struct {
 
 type Item struct {
 	ID                uint    `gorm:"primaryKey"`
+	TenantID          *uint   `gorm:"index"`
 	Name              string  `gorm:"size:160;not null;index"`
 	Code              string  `gorm:"size:80;uniqueIndex;not null"`
 	Barcode           string  `gorm:"size:120;index"`
@@ -111,8 +116,9 @@ const (
 )
 
 type StockMovement struct {
-	ID          uint `gorm:"primaryKey"`
-	ItemID      uint `gorm:"not null;index"`
+	ID          uint  `gorm:"primaryKey"`
+	TenantID    *uint `gorm:"index"`
+	ItemID      uint  `gorm:"not null;index"`
 	Item        Item
 	BranchID    *uint             `gorm:"index"`
 	WarehouseID *uint             `gorm:"index"`
@@ -126,6 +132,7 @@ type StockMovement struct {
 
 type SalesInvoice struct {
 	ID          uint   `gorm:"primaryKey"`
+	TenantID    *uint  `gorm:"index"`
 	Number      string `gorm:"size:40;uniqueIndex;not null"`
 	UserID      uint   `gorm:"not null;index"`
 	User        User
@@ -157,6 +164,7 @@ type SalesInvoiceItem struct {
 
 type Treasury struct {
 	ID           uint    `gorm:"primaryKey"`
+	TenantID     *uint   `gorm:"index"`
 	BranchID     *uint   `gorm:"index"`
 	Name         string  `gorm:"size:120;uniqueIndex;not null"`
 	Balance      float64 `gorm:"type:numeric(14,2);not null;default:0"`
@@ -190,6 +198,7 @@ type TreasuryTransaction struct {
 
 type Customer struct {
 	ID          uint    `gorm:"primaryKey"`
+	TenantID    *uint   `gorm:"index"`
 	Name        string  `gorm:"size:160;not null;index"`
 	Phone       string  `gorm:"size:40;index"`
 	Address     string  `gorm:"size:255"`
@@ -224,6 +233,7 @@ type CustomerTransaction struct {
 
 type Supplier struct {
 	ID        uint    `gorm:"primaryKey"`
+	TenantID  *uint   `gorm:"index"`
 	Name      string  `gorm:"size:160;not null;index"`
 	Phone     string  `gorm:"size:40;index"`
 	Address   string  `gorm:"size:255"`
@@ -257,6 +267,7 @@ type SupplierTransaction struct {
 
 type PurchaseInvoice struct {
 	ID          uint   `gorm:"primaryKey"`
+	TenantID    *uint  `gorm:"index"`
 	Number      string `gorm:"size:40;uniqueIndex;not null"`
 	SupplierID  uint   `gorm:"not null;index"`
 	Supplier    Supplier
@@ -297,6 +308,7 @@ const (
 
 type ChartOfAccount struct {
 	ID        uint        `gorm:"primaryKey"`
+	TenantID  *uint       `gorm:"index"`
 	Code      string      `gorm:"size:30;uniqueIndex;not null"`
 	Name      string      `gorm:"size:120;not null;index"`
 	Type      AccountType `gorm:"type:varchar(20);not null;index"`
@@ -306,6 +318,7 @@ type ChartOfAccount struct {
 
 type JournalEntry struct {
 	ID          uint   `gorm:"primaryKey"`
+	TenantID    *uint  `gorm:"index"`
 	Number      string `gorm:"size:40;uniqueIndex;not null"`
 	Reference   string `gorm:"size:120;index"`
 	Description string `gorm:"size:255"`
@@ -450,4 +463,296 @@ type LoginAttempt struct {
 	IP        string    `gorm:"size:64;index"`
 	Success   bool      `gorm:"not null;index"`
 	CreatedAt time.Time `gorm:"index"`
+}
+
+type Tenant struct {
+	ID        uint   `gorm:"primaryKey"`
+	Name      string `gorm:"size:160;not null;index"`
+	Slug      string `gorm:"size:80;uniqueIndex;not null"`
+	Domain    string `gorm:"size:180;index"`
+	Subdomain string `gorm:"size:80;uniqueIndex"`
+	Status    string `gorm:"size:30;not null;default:'trial';index"`
+	Settings  CompanySetting
+	CreatedAt time.Time
+	UpdatedAt time.Time
+	DeletedAt gorm.DeletedAt `gorm:"index"`
+}
+
+type Plan struct {
+	ID           uint    `gorm:"primaryKey"`
+	Code         string  `gorm:"size:50;uniqueIndex;not null"`
+	Name         string  `gorm:"size:120;not null"`
+	PriceMonthly float64 `gorm:"type:numeric(14,2);not null;default:0"`
+	MaxUsers     int     `gorm:"not null;default:5"`
+	MaxBranches  int     `gorm:"not null;default:1"`
+	Features     string  `gorm:"type:text"`
+	IsActive     bool    `gorm:"not null;default:true;index"`
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+}
+
+type Subscription struct {
+	ID        uint `gorm:"primaryKey"`
+	TenantID  uint `gorm:"not null;index"`
+	Tenant    Tenant
+	PlanID    uint `gorm:"not null;index"`
+	Plan      Plan
+	Status    string `gorm:"size:30;not null;index"`
+	StartsAt  time.Time
+	EndsAt    *time.Time `gorm:"index"`
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+type TenantUser struct {
+	ID        uint `gorm:"primaryKey"`
+	TenantID  uint `gorm:"not null;uniqueIndex:idx_tenant_user"`
+	UserID    uint `gorm:"not null;uniqueIndex:idx_tenant_user"`
+	IsOwner   bool `gorm:"not null;default:false"`
+	CreatedAt time.Time
+}
+
+type CompanySetting struct {
+	ID        uint   `gorm:"primaryKey"`
+	TenantID  uint   `gorm:"not null;uniqueIndex"`
+	LegalName string `gorm:"size:180"`
+	TaxNumber string `gorm:"size:80"`
+	LogoURL   string `gorm:"size:255"`
+	Currency  string `gorm:"size:10;not null;default:'EGP'"`
+	TimeZone  string `gorm:"size:80;not null;default:'Africa/Cairo'"`
+	Address   string `gorm:"size:255"`
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+type FiscalYear struct {
+	ID        uint   `gorm:"primaryKey"`
+	TenantID  uint   `gorm:"not null;index"`
+	Name      string `gorm:"size:80;not null"`
+	StartDate time.Time
+	EndDate   time.Time
+	IsClosed  bool `gorm:"not null;default:false;index"`
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+type FinancialPeriod struct {
+	ID           uint   `gorm:"primaryKey"`
+	TenantID     uint   `gorm:"not null;index"`
+	FiscalYearID uint   `gorm:"not null;index"`
+	Name         string `gorm:"size:80;not null"`
+	StartDate    time.Time
+	EndDate      time.Time
+	IsClosed     bool `gorm:"not null;default:false;index"`
+	CreatedAt    time.Time
+	UpdatedAt    time.Time
+}
+
+type OpeningBalance struct {
+	ID           uint    `gorm:"primaryKey"`
+	TenantID     uint    `gorm:"not null;index"`
+	AccountID    uint    `gorm:"not null;index"`
+	Debit        float64 `gorm:"type:numeric(14,2);not null;default:0"`
+	Credit       float64 `gorm:"type:numeric(14,2);not null;default:0"`
+	FiscalYearID uint    `gorm:"not null;index"`
+	CreatedAt    time.Time
+}
+
+type ClosingEntry struct {
+	ID             uint `gorm:"primaryKey"`
+	TenantID       uint `gorm:"not null;index"`
+	FiscalYearID   uint `gorm:"not null;index"`
+	JournalEntryID uint `gorm:"not null;index"`
+	CreatedAt      time.Time
+}
+
+type EInvoice struct {
+	ID        uint    `gorm:"primaryKey"`
+	TenantID  uint    `gorm:"not null;index"`
+	InvoiceID uint    `gorm:"not null;index"`
+	UUID      string  `gorm:"size:80;uniqueIndex;not null"`
+	QRPayload string  `gorm:"type:text"`
+	XMLBody   string  `gorm:"type:text"`
+	VATAmount float64 `gorm:"type:numeric(14,2);not null;default:0"`
+	Status    string  `gorm:"size:30;not null;default:'draft';index"`
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+type ApprovalWorkflow struct {
+	ID        uint   `gorm:"primaryKey"`
+	TenantID  uint   `gorm:"not null;index"`
+	Name      string `gorm:"size:120;not null"`
+	Module    string `gorm:"size:50;not null;index"`
+	IsActive  bool   `gorm:"not null;default:true;index"`
+	Steps     []ApprovalStep
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+type ApprovalStep struct {
+	ID         uint   `gorm:"primaryKey"`
+	WorkflowID uint   `gorm:"not null;index"`
+	StepOrder  int    `gorm:"not null"`
+	RoleID     *uint  `gorm:"index"`
+	UserID     *uint  `gorm:"index"`
+	Name       string `gorm:"size:120;not null"`
+	CreatedAt  time.Time
+}
+
+type ApprovalLog struct {
+	ID         uint      `gorm:"primaryKey"`
+	TenantID   uint      `gorm:"not null;index"`
+	WorkflowID uint      `gorm:"not null;index"`
+	EntityType string    `gorm:"size:80;not null;index"`
+	EntityID   uint      `gorm:"not null;index"`
+	StepID     *uint     `gorm:"index"`
+	Status     string    `gorm:"size:30;not null;index"`
+	Comment    string    `gorm:"size:500"`
+	UserID     uint      `gorm:"not null;index"`
+	CreatedAt  time.Time `gorm:"index"`
+}
+
+type ItemSerial struct {
+	ID           uint   `gorm:"primaryKey"`
+	TenantID     uint   `gorm:"not null;index"`
+	ItemID       uint   `gorm:"not null;index"`
+	SerialNumber string `gorm:"size:120;uniqueIndex;not null"`
+	Status       string `gorm:"size:30;not null;default:'available';index"`
+	CreatedAt    time.Time
+}
+
+type ItemBatch struct {
+	ID         uint       `gorm:"primaryKey"`
+	TenantID   uint       `gorm:"not null;index"`
+	ItemID     uint       `gorm:"not null;index"`
+	BatchNo    string     `gorm:"size:120;not null;index"`
+	ExpiryDate *time.Time `gorm:"index"`
+	Quantity   float64    `gorm:"type:numeric(14,3);not null;default:0"`
+	UnitCost   float64    `gorm:"type:numeric(14,2);not null;default:0"`
+	CreatedAt  time.Time
+}
+
+type StockValuationLayer struct {
+	ID                uint      `gorm:"primaryKey"`
+	TenantID          uint      `gorm:"not null;index"`
+	ItemID            uint      `gorm:"not null;index"`
+	Method            string    `gorm:"size:20;not null;index"`
+	Quantity          float64   `gorm:"type:numeric(14,3);not null"`
+	UnitCost          float64   `gorm:"type:numeric(14,2);not null"`
+	RemainingQuantity float64   `gorm:"type:numeric(14,3);not null"`
+	CreatedAt         time.Time `gorm:"index"`
+}
+
+type CRMActivity struct {
+	ID         uint       `gorm:"primaryKey"`
+	TenantID   uint       `gorm:"not null;index"`
+	CustomerID uint       `gorm:"not null;index"`
+	Type       string     `gorm:"size:40;not null;index"`
+	Subject    string     `gorm:"size:160;not null"`
+	Notes      string     `gorm:"size:1000"`
+	DueAt      *time.Time `gorm:"index"`
+	DoneAt     *time.Time `gorm:"index"`
+	UserID     *uint      `gorm:"index"`
+	CreatedAt  time.Time
+}
+
+type SalesPipeline struct {
+	ID        uint   `gorm:"primaryKey"`
+	TenantID  uint   `gorm:"not null;index"`
+	Name      string `gorm:"size:120;not null"`
+	Stages    []SalesPipelineStage
+	CreatedAt time.Time
+}
+
+type SalesPipelineStage struct {
+	ID         uint   `gorm:"primaryKey"`
+	PipelineID uint   `gorm:"not null;index"`
+	Name       string `gorm:"size:120;not null"`
+	SortOrder  int    `gorm:"not null;default:0"`
+}
+
+type Deal struct {
+	ID              uint       `gorm:"primaryKey"`
+	TenantID        uint       `gorm:"not null;index"`
+	CustomerID      uint       `gorm:"not null;index"`
+	StageID         uint       `gorm:"not null;index"`
+	Title           string     `gorm:"size:160;not null"`
+	Value           float64    `gorm:"type:numeric(14,2);not null;default:0"`
+	Status          string     `gorm:"size:30;not null;default:'open';index"`
+	ExpectedCloseAt *time.Time `gorm:"index"`
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+}
+
+type Employee struct {
+	ID         uint    `gorm:"primaryKey"`
+	TenantID   uint    `gorm:"not null;index"`
+	BranchID   *uint   `gorm:"index"`
+	Name       string  `gorm:"size:160;not null;index"`
+	Email      string  `gorm:"size:160;index"`
+	Phone      string  `gorm:"size:40;index"`
+	JobTitle   string  `gorm:"size:120"`
+	BaseSalary float64 `gorm:"type:numeric(14,2);not null;default:0"`
+	IsActive   bool    `gorm:"not null;default:true;index"`
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
+}
+
+type AttendanceRecord struct {
+	ID         uint      `gorm:"primaryKey"`
+	TenantID   uint      `gorm:"not null;index"`
+	EmployeeID uint      `gorm:"not null;index"`
+	WorkDate   time.Time `gorm:"index"`
+	CheckIn    *time.Time
+	CheckOut   *time.Time
+	Status     string `gorm:"size:30;not null;default:'present';index"`
+	CreatedAt  time.Time
+}
+
+type PayrollRun struct {
+	ID         uint    `gorm:"primaryKey"`
+	TenantID   uint    `gorm:"not null;index"`
+	PeriodName string  `gorm:"size:80;not null"`
+	GrossTotal float64 `gorm:"type:numeric(14,2);not null;default:0"`
+	NetTotal   float64 `gorm:"type:numeric(14,2);not null;default:0"`
+	Status     string  `gorm:"size:30;not null;default:'draft';index"`
+	CreatedAt  time.Time
+}
+
+type MobileDevice struct {
+	ID         uint   `gorm:"primaryKey"`
+	TenantID   uint   `gorm:"not null;index"`
+	UserID     uint   `gorm:"not null;index"`
+	Platform   string `gorm:"size:30;not null"`
+	PushToken  string `gorm:"size:255;index"`
+	LastSeenAt *time.Time
+	CreatedAt  time.Time
+}
+
+type RefreshToken struct {
+	ID        uint       `gorm:"primaryKey"`
+	TenantID  *uint      `gorm:"index"`
+	UserID    uint       `gorm:"not null;index"`
+	TokenHash string     `gorm:"size:120;uniqueIndex;not null"`
+	ExpiresAt time.Time  `gorm:"index"`
+	RevokedAt *time.Time `gorm:"index"`
+	CreatedAt time.Time
+}
+
+type LicenseKey struct {
+	ID        uint       `gorm:"primaryKey"`
+	TenantID  *uint      `gorm:"index"`
+	Key       string     `gorm:"size:120;uniqueIndex;not null"`
+	Status    string     `gorm:"size:30;not null;default:'active';index"`
+	ExpiresAt *time.Time `gorm:"index"`
+	CreatedAt time.Time
+}
+
+type SystemUpdate struct {
+	ID        uint   `gorm:"primaryKey"`
+	Version   string `gorm:"size:40;uniqueIndex;not null"`
+	Notes     string `gorm:"type:text"`
+	Status    string `gorm:"size:30;not null;default:'available';index"`
+	CreatedAt time.Time
 }
