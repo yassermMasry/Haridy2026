@@ -38,6 +38,9 @@ func (s *TreasuryService) Add(tType models.TreasuryTransactionType, amount float
 		if tType == models.TreasuryExpense {
 			delta = -amount
 		}
+		if err := ValidateNonNegativeBalance(treasury.Balance, delta, "treasury balance"); err != nil {
+			return err
+		}
 		if err := tx.Model(&treasury).Update("balance", gorm.Expr("balance + ?", delta)).Error; err != nil {
 			return err
 		}

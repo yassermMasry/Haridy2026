@@ -13,7 +13,9 @@ type Config struct {
 	AppEnv        string
 	AppPort       string
 	AppSecret     string
+	AppSecrets    []string
 	JWTSecret     string
+	JWTSecrets    []string
 	DBHost        string
 	DBPort        string
 	DBUser        string
@@ -28,12 +30,16 @@ type Config struct {
 
 func Load() Config {
 	_ = godotenv.Load()
+	appSecret := env("APP_SECRET", "change-me")
+	jwtSecret := env("JWT_SECRET", appSecret)
 	return Config{
 		AppName:       env("APP_NAME", "Haridy Inventory"),
 		AppEnv:        env("APP_ENV", "development"),
 		AppPort:       env("APP_PORT", "8080"),
-		AppSecret:     env("APP_SECRET", "change-me"),
-		JWTSecret:     env("JWT_SECRET", env("APP_SECRET", "change-me")),
+		AppSecret:     appSecret,
+		AppSecrets:    splitSecrets(env("APP_SECRETS", appSecret)),
+		JWTSecret:     jwtSecret,
+		JWTSecrets:    splitSecrets(env("JWT_SECRETS", jwtSecret)),
 		DBHost:        env("DB_HOST", "localhost"),
 		DBPort:        env("DB_PORT", "5432"),
 		DBUser:        env("DB_USER", "postgres"),
@@ -45,6 +51,20 @@ func Load() Config {
 		RedisPassword: env("REDIS_PASSWORD", ""),
 		RedisDB:       env("REDIS_DB", "0"),
 	}
+}
+
+func splitSecrets(value string) []string {
+	parts := strings.Split(value, ",")
+	secrets := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if secret := strings.TrimSpace(part); secret != "" {
+			secrets = append(secrets, secret)
+		}
+	}
+	if len(secrets) == 0 {
+		return []string{"change-me"}
+	}
+	return secrets
 }
 
 func (c Config) LogLevel() slog.Level {

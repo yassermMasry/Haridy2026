@@ -15,6 +15,7 @@ function addRow(matchBarcode = "") {
   }
   tr.querySelector(".price").value = selectedPrice(select);
   calculate();
+  tr.querySelector(".qty")?.focus();
 }
 
 function selectedPrice(select) {
@@ -39,6 +40,20 @@ function calculate() {
 }
 
 addBtn?.addEventListener("click", () => addRow());
+document.addEventListener("keydown", (event) => {
+  if (event.key === "F2") {
+    event.preventDefault();
+    addRow();
+  }
+  if (event.key === "F4") {
+    event.preventDefault();
+    barcodeInput?.focus();
+  }
+  if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+    event.preventDefault();
+    event.target.closest("form")?.requestSubmit();
+  }
+});
 barcodeInput?.addEventListener("keydown", (event) => {
   if (event.key === "Enter") {
     event.preventDefault();

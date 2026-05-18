@@ -38,6 +38,9 @@ func (s *ReturnService) SalesReturn(invoiceID uint, reason string, userID uint) 
 			if err := tx.First(&treasury).Error; err != nil {
 				return err
 			}
+			if err := ValidateNonNegativeBalance(treasury.Balance, -invoice.PaidCash, "treasury balance"); err != nil {
+				return err
+			}
 			if err := tx.Model(&treasury).Update("balance", gorm.Expr("balance - ?", invoice.PaidCash)).Error; err != nil {
 				return err
 			}
@@ -57,6 +60,13 @@ func (s *ReturnService) PurchaseReturn(invoiceID uint, reason string, userID uin
 		}
 		ret := models.PurchaseReturn{Number: fmt.Sprintf("PR-%s", time.Now().Format("20060102150405")), InvoiceID: invoice.ID, BranchID: invoice.BranchID, WarehouseID: invoice.WarehouseID, Total: invoice.Total, Reason: reason, UserID: userID}
 		for _, line := range invoice.Items {
+			var item models.Item
+			if err := tx.First(&item, line.ItemID).Error; err != nil {
+				return err
+			}
+			if err := ValidateInventoryDelta(item.Quantity, -line.Quantity, item.Name); err != nil {
+				return err
+			}
 			ret.Items = append(ret.Items, models.PurchaseReturnItem{ItemID: line.ItemID, Quantity: line.Quantity, UnitCost: line.UnitCost, Total: line.Total})
 			if err := tx.Model(&models.Item{}).Where("id = ?", line.ItemID).Update("quantity", gorm.Expr("quantity - ?", line.Quantity)).Error; err != nil {
 				return err

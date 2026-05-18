@@ -16,6 +16,12 @@ type JournalLineInput struct {
 }
 
 func CreateJournal(tx *gorm.DB, reference, description string, lines []JournalLineInput) error {
+	if err := ValidateJournalLines(lines); err != nil {
+		return err
+	}
+	if err := ValidatePostingNotDuplicate(tx, reference); err != nil {
+		return err
+	}
 	entry := models.JournalEntry{
 		Number:      fmt.Sprintf("JE-%s", time.Now().Format("20060102150405.000000")),
 		Reference:   reference,

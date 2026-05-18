@@ -56,7 +56,7 @@ type ItemCategory struct {
 	ID        uint   `gorm:"primaryKey"`
 	TenantID  *uint  `gorm:"index"`
 	Name      string `gorm:"size:120;uniqueIndex;not null"`
-	Items     []Item
+	Items     []Item `gorm:"foreignKey:CategoryID"`
 	CreatedAt time.Time
 	UpdatedAt time.Time
 	DeletedAt gorm.DeletedAt `gorm:"index"`
@@ -138,16 +138,16 @@ type SalesInvoice struct {
 	User        User
 	CustomerID  *uint `gorm:"index"`
 	Customer    *Customer
-	BranchID    *uint   `gorm:"index"`
-	WarehouseID *uint   `gorm:"index"`
-	PaymentType string  `gorm:"size:20;not null;default:'cash';index"`
-	Subtotal    float64 `gorm:"type:numeric(14,2);not null;default:0"`
-	Discount    float64 `gorm:"type:numeric(14,2);not null;default:0"`
-	Tax         float64 `gorm:"type:numeric(14,2);not null;default:0"`
-	Total       float64 `gorm:"type:numeric(14,2);not null;default:0"`
-	PaidCash    float64 `gorm:"type:numeric(14,2);not null;default:0"`
-	Items       []SalesInvoiceItem
-	CreatedAt   time.Time `gorm:"index"`
+	BranchID    *uint              `gorm:"index"`
+	WarehouseID *uint              `gorm:"index"`
+	PaymentType string             `gorm:"size:20;not null;default:'cash';index"`
+	Subtotal    float64            `gorm:"type:numeric(14,2);not null;default:0"`
+	Discount    float64            `gorm:"type:numeric(14,2);not null;default:0"`
+	Tax         float64            `gorm:"type:numeric(14,2);not null;default:0"`
+	Total       float64            `gorm:"type:numeric(14,2);not null;default:0"`
+	PaidCash    float64            `gorm:"type:numeric(14,2);not null;default:0"`
+	Items       []SalesInvoiceItem `gorm:"foreignKey:InvoiceID"`
+	CreatedAt   time.Time          `gorm:"index"`
 	UpdatedAt   time.Time
 }
 
@@ -275,14 +275,14 @@ type PurchaseInvoice struct {
 	WarehouseID *uint `gorm:"index"`
 	UserID      uint  `gorm:"not null;index"`
 	User        User
-	PaymentType string  `gorm:"size:20;not null;default:'cash';index"`
-	Subtotal    float64 `gorm:"type:numeric(14,2);not null;default:0"`
-	Discount    float64 `gorm:"type:numeric(14,2);not null;default:0"`
-	Tax         float64 `gorm:"type:numeric(14,2);not null;default:0"`
-	Total       float64 `gorm:"type:numeric(14,2);not null;default:0"`
-	PaidCash    float64 `gorm:"type:numeric(14,2);not null;default:0"`
-	Items       []PurchaseInvoiceItem
-	CreatedAt   time.Time `gorm:"index"`
+	PaymentType string                `gorm:"size:20;not null;default:'cash';index"`
+	Subtotal    float64               `gorm:"type:numeric(14,2);not null;default:0"`
+	Discount    float64               `gorm:"type:numeric(14,2);not null;default:0"`
+	Tax         float64               `gorm:"type:numeric(14,2);not null;default:0"`
+	Total       float64               `gorm:"type:numeric(14,2);not null;default:0"`
+	PaidCash    float64               `gorm:"type:numeric(14,2);not null;default:0"`
+	Items       []PurchaseInvoiceItem `gorm:"foreignKey:InvoiceID"`
+	CreatedAt   time.Time             `gorm:"index"`
 	UpdatedAt   time.Time
 }
 
@@ -317,13 +317,13 @@ type ChartOfAccount struct {
 }
 
 type JournalEntry struct {
-	ID          uint   `gorm:"primaryKey"`
-	TenantID    *uint  `gorm:"index"`
-	Number      string `gorm:"size:40;uniqueIndex;not null"`
-	Reference   string `gorm:"size:120;index"`
-	Description string `gorm:"size:255"`
-	Lines       []JournalEntryLine
-	CreatedAt   time.Time `gorm:"index"`
+	ID          uint               `gorm:"primaryKey"`
+	TenantID    *uint              `gorm:"index"`
+	Number      string             `gorm:"size:40;uniqueIndex;not null"`
+	Reference   string             `gorm:"size:120;index"`
+	Description string             `gorm:"size:255"`
+	Lines       []JournalEntryLine `gorm:"foreignKey:EntryID"`
+	CreatedAt   time.Time          `gorm:"index"`
 }
 
 type JournalEntryLine struct {
@@ -338,6 +338,7 @@ type JournalEntryLine struct {
 
 type AuditLog struct {
 	ID        uint      `gorm:"primaryKey"`
+	TenantID  *uint     `gorm:"index"`
 	UserID    *uint     `gorm:"index"`
 	Action    string    `gorm:"size:80;not null;index"`
 	Entity    string    `gorm:"size:80;not null;index"`
@@ -379,13 +380,13 @@ type SalesReturn struct {
 	Number      string `gorm:"size:40;uniqueIndex;not null"`
 	InvoiceID   uint   `gorm:"not null;index"`
 	Invoice     SalesInvoice
-	BranchID    *uint   `gorm:"index"`
-	WarehouseID *uint   `gorm:"index"`
-	Total       float64 `gorm:"type:numeric(14,2);not null;default:0"`
-	Reason      string  `gorm:"size:255"`
-	UserID      uint    `gorm:"not null;index"`
-	Items       []SalesReturnItem
-	CreatedAt   time.Time `gorm:"index"`
+	BranchID    *uint             `gorm:"index"`
+	WarehouseID *uint             `gorm:"index"`
+	Total       float64           `gorm:"type:numeric(14,2);not null;default:0"`
+	Reason      string            `gorm:"size:255"`
+	UserID      uint              `gorm:"not null;index"`
+	Items       []SalesReturnItem `gorm:"foreignKey:ReturnID"`
+	CreatedAt   time.Time         `gorm:"index"`
 }
 
 type SalesReturnItem struct {
@@ -403,13 +404,13 @@ type PurchaseReturn struct {
 	Number      string `gorm:"size:40;uniqueIndex;not null"`
 	InvoiceID   uint   `gorm:"not null;index"`
 	Invoice     PurchaseInvoice
-	BranchID    *uint   `gorm:"index"`
-	WarehouseID *uint   `gorm:"index"`
-	Total       float64 `gorm:"type:numeric(14,2);not null;default:0"`
-	Reason      string  `gorm:"size:255"`
-	UserID      uint    `gorm:"not null;index"`
-	Items       []PurchaseReturnItem
-	CreatedAt   time.Time `gorm:"index"`
+	BranchID    *uint                `gorm:"index"`
+	WarehouseID *uint                `gorm:"index"`
+	Total       float64              `gorm:"type:numeric(14,2);not null;default:0"`
+	Reason      string               `gorm:"size:255"`
+	UserID      uint                 `gorm:"not null;index"`
+	Items       []PurchaseReturnItem `gorm:"foreignKey:ReturnID"`
+	CreatedAt   time.Time            `gorm:"index"`
 }
 
 type PurchaseReturnItem struct {
@@ -463,6 +464,55 @@ type LoginAttempt struct {
 	IP        string    `gorm:"size:64;index"`
 	Success   bool      `gorm:"not null;index"`
 	CreatedAt time.Time `gorm:"index"`
+}
+
+type SecurityEvent struct {
+	ID        uint      `gorm:"primaryKey"`
+	TenantID  *uint     `gorm:"index"`
+	UserID    *uint     `gorm:"index"`
+	Type      string    `gorm:"size:80;not null;index"`
+	Severity  string    `gorm:"size:20;not null;default:'info';index"`
+	IP        string    `gorm:"size:64;index"`
+	UserAgent string    `gorm:"size:255"`
+	Details   string    `gorm:"size:1000"`
+	CreatedAt time.Time `gorm:"index"`
+}
+
+type ReconciliationRun struct {
+	ID          uint       `gorm:"primaryKey"`
+	TenantID    *uint      `gorm:"index"`
+	Scope       string     `gorm:"size:80;not null;index"`
+	Status      string     `gorm:"size:30;not null;index"`
+	Findings    string     `gorm:"type:text"`
+	StartedAt   time.Time  `gorm:"index"`
+	CompletedAt *time.Time `gorm:"index"`
+}
+
+type BackupVerification struct {
+	ID          uint       `gorm:"primaryKey"`
+	BackupName  string     `gorm:"size:255;not null;index"`
+	StorageURI  string     `gorm:"size:500"`
+	Checksum    string     `gorm:"size:128"`
+	Encrypted   bool       `gorm:"not null;default:false"`
+	Status      string     `gorm:"size:30;not null;index"`
+	Details     string     `gorm:"size:1000"`
+	CompletedAt *time.Time `gorm:"index"`
+	CreatedAt   time.Time  `gorm:"index"`
+}
+
+type ReportJob struct {
+	ID          uint       `gorm:"primaryKey"`
+	TenantID    *uint      `gorm:"index"`
+	Type        string     `gorm:"size:80;not null;index"`
+	Status      string     `gorm:"size:30;not null;default:'queued';index"`
+	Parameters  string     `gorm:"type:text"`
+	ResultPath  string     `gorm:"size:500"`
+	Error       string     `gorm:"size:1000"`
+	RequestedBy *uint      `gorm:"index"`
+	StartedAt   *time.Time `gorm:"index"`
+	CompletedAt *time.Time `gorm:"index"`
+	CreatedAt   time.Time  `gorm:"index"`
+	UpdatedAt   time.Time
 }
 
 type Tenant struct {
@@ -580,12 +630,12 @@ type EInvoice struct {
 }
 
 type ApprovalWorkflow struct {
-	ID        uint   `gorm:"primaryKey"`
-	TenantID  uint   `gorm:"not null;index"`
-	Name      string `gorm:"size:120;not null"`
-	Module    string `gorm:"size:50;not null;index"`
-	IsActive  bool   `gorm:"not null;default:true;index"`
-	Steps     []ApprovalStep
+	ID        uint           `gorm:"primaryKey"`
+	TenantID  uint           `gorm:"not null;index"`
+	Name      string         `gorm:"size:120;not null"`
+	Module    string         `gorm:"size:50;not null;index"`
+	IsActive  bool           `gorm:"not null;default:true;index"`
+	Steps     []ApprovalStep `gorm:"foreignKey:WorkflowID"`
 	CreatedAt time.Time
 	UpdatedAt time.Time
 }
@@ -658,10 +708,10 @@ type CRMActivity struct {
 }
 
 type SalesPipeline struct {
-	ID        uint   `gorm:"primaryKey"`
-	TenantID  uint   `gorm:"not null;index"`
-	Name      string `gorm:"size:120;not null"`
-	Stages    []SalesPipelineStage
+	ID        uint                 `gorm:"primaryKey"`
+	TenantID  uint                 `gorm:"not null;index"`
+	Name      string               `gorm:"size:120;not null"`
+	Stages    []SalesPipelineStage `gorm:"foreignKey:PipelineID"`
 	CreatedAt time.Time
 }
 

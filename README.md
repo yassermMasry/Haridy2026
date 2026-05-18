@@ -15,7 +15,8 @@ Commercial multi-tenant ERP platform built with Go, Gin, GORM, PostgreSQL, Redis
 - HR basics: employees, attendance, payroll runs.
 - Mobile-ready API: JWT auth, refresh tokens, device registration and push token hook.
 - Observability: `/healthz`, `/readyz`, `/metrics`, structured logs, trace headers.
-- Security: secure headers, CSRF for web, JWT for API, rate limiting, login attempt limits, session expiration.
+- Security: CSP/HSTS headers, secure production cookies, CSRF for web, JWT rotation support, rate limiting, brute force protection, password policy validator, audited security events.
+- Production hardening: accounting/inventory reconciliation jobs, duplicate posting protection, non-negative balance guards, encrypted PostgreSQL backup scripts, Prometheus/Grafana starter configs.
 - Deployment: Docker, Compose, Nginx, GitHub Actions, AWS and DigitalOcean deployment profiles.
 - Commercial polish: landing page, onboarding wizard, demo tenant, license table, system updates table.
 
@@ -126,6 +127,15 @@ It runs Go tests, builds Docker image, installs frontend dependencies, and build
 go test ./...
 ```
 
+## Production Operations
+
+- API reference: `docs/API.md`
+- Architecture and deployment diagram: `docs/ARCHITECTURE.md`
+- Recovery procedures: `docs/RECOVERY.md`
+- Incident response: `docs/INCIDENT_RESPONSE.md`
+- Backups: `deploy/backup/postgres_backup.ps1`, `postgres_restore.ps1`, `verify_backup.ps1`
+- Monitoring: `deploy/monitoring/prometheus.yml`, `alerts.yml`, `grafana-dashboard.json`
+
 ## Notes
 
-This is now a commercial SaaS ERP foundation with working compile-time integration and production deployment scaffolding. Before selling to real customers, add full automated tests for tenant isolation, accounting correctness, tax compliance, payment provider integration, and security review.
+This is now a hardened SaaS ERP foundation with automated tests, accounting integrity checks, tenant isolation coverage, security controls, backup runbooks, monitoring scaffolding, and production recovery docs. Before onboarding high-volume customers, complete a real staging load test and jurisdiction-specific tax/e-invoice compliance review.

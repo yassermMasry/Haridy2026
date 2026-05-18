@@ -39,7 +39,7 @@ func (h *APIHandler) Login(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid payload"})
 		return
 	}
-	user, err := h.auth.Login(req.Username, req.Password)
+	user, err := h.auth.LoginWithContext(req.Username, req.Password, c.ClientIP(), c.Request.UserAgent())
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		return

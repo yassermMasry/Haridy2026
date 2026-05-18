@@ -20,6 +20,19 @@ th, td { padding: 0.75rem; text-align: right; }
 .dark .metric-card, .dark .module-card, .dark form, .dark table, .dark .bg-white { background: rgb(15 23 42) !important; color: rgb(226 232 240); border-color: rgb(51 65 85); }
 .dark .form-input { background: rgb(2 6 23); color: rgb(226 232 240); border-color: rgb(71 85 105); }
 .dark .btn-secondary, .dark .btn-light { background: rgb(51 65 85); color: white; }
+.offline-indicator { position: fixed; left: 1rem; bottom: 1rem; z-index: 50; display: none; border-radius: .375rem; background: rgb(185 28 28); color: white; padding: .45rem .75rem; font-weight: 800; box-shadow: 0 10px 25px rgba(15,23,42,.18); }
+.offline-indicator.is-visible { display: block; }
+[aria-busy="true"] { cursor: wait; }
+.empty-state { border: 1px dashed rgb(203 213 225); border-radius: .5rem; padding: 2rem; text-align: center; color: rgb(100 116 139); background: rgb(248 250 252); }
+.skeleton { position: relative; overflow: hidden; background: rgb(226 232 240); border-radius: .375rem; min-height: 1rem; }
+.skeleton::after { content: ""; position: absolute; inset: 0; transform: translateX(-100%); background: linear-gradient(90deg, transparent, rgba(255,255,255,.65), transparent); animation: skeleton-loading 1.2s infinite; }
+@keyframes skeleton-loading { to { transform: translateX(100%); } }
+@media (max-width: 720px) {
+  th, td { padding: .55rem; }
+  .btn-primary, .btn-secondary, .btn-light, .btn-danger { width: 100%; min-height: 2.5rem; }
+  table { font-size: .875rem; }
+  .metric-card strong { font-size: 1.45rem; }
+}
 @media print {
   aside, header { display: none !important; }
   main, section { padding: 0 !important; margin: 0 !important; max-width: none !important; }

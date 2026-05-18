@@ -1,0 +1,17 @@
+groups:
+  - name: haridy-production
+    rules:
+      - alert: HaridyHighErrorCount
+        expr: increase(haridy_http_errors_total[5m]) > 5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Haridy 5xx responses increased
+      - alert: HaridySlowRequests
+        expr: increase(haridy_http_slow_requests_total[5m]) > 10
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: Haridy has sustained slow requests

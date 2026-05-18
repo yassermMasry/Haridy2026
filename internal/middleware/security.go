@@ -18,7 +18,10 @@ func SecureHeaders() gin.HandlerFunc {
 		c.Header("X-Content-Type-Options", "nosniff")
 		c.Header("Referrer-Policy", "strict-origin-when-cross-origin")
 		c.Header("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
-		c.Header("Content-Security-Policy", "default-src 'self' https://cdn.tailwindcss.com https://cdn.jsdelivr.net; script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline';")
+		c.Header("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+		c.Header("Cross-Origin-Opener-Policy", "same-origin")
+		c.Header("Cross-Origin-Resource-Policy", "same-origin")
+		c.Header("Content-Security-Policy", "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; img-src 'self' data:; connect-src 'self'; font-src 'self' data: https://cdn.jsdelivr.net; script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; upgrade-insecure-requests")
 		c.Next()
 	}
 }
@@ -104,6 +107,12 @@ func AuditRequest(db *gorm.DB) gin.HandlerFunc {
 		if userID > 0 {
 			uid = &userID
 		}
-		_ = db.Create(&models.AuditLog{UserID: uid, Action: c.Request.Method, Entity: "http_request", Details: c.FullPath()}).Error
+		var tenantID *uint
+		if value, exists := c.Get(TenantContextKey); exists {
+			if id, ok := value.(uint); ok && id > 0 {
+				tenantID = &id
+			}
+		}
+		_ = db.Create(&models.AuditLog{TenantID: tenantID, UserID: uid, Action: c.Request.Method, Entity: "http_request", Details: c.FullPath()}).Error
 	}
 }

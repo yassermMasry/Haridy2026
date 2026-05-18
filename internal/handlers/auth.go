@@ -21,7 +21,7 @@ func (h *AuthHandler) LoginPage(c *gin.Context) {
 }
 
 func (h *AuthHandler) Login(c *gin.Context) {
-	user, err := h.service.Login(c.PostForm("username"), c.PostForm("password"))
+	user, err := h.service.LoginWithContext(c.PostForm("username"), c.PostForm("password"), c.ClientIP(), c.Request.UserAgent())
 	if err != nil {
 		middleware.SetFlash(sessions.Default(c), err.Error())
 		c.Redirect(http.StatusFound, "/login")

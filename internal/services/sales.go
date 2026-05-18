@@ -75,8 +75,8 @@ func (s *SalesService) Create(input SaleInput) (*models.SalesInvoice, error) {
 			if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&item, line.ItemID).Error; err != nil {
 				return err
 			}
-			if item.Quantity < line.Quantity {
-				return fmt.Errorf("insufficient stock for %s", item.Name)
+			if err := ValidateInventoryDelta(item.Quantity, -line.Quantity, item.Name); err != nil {
+				return err
 			}
 			price := line.UnitPrice
 			if price <= 0 {
@@ -123,6 +123,9 @@ func (s *SalesService) Create(input SaleInput) (*models.SalesInvoice, error) {
 		if invoice.PaidCash > 0 {
 			var treasury models.Treasury
 			if err := tx.First(&treasury).Error; err != nil {
+				return err
+			}
+			if err := ValidateNonNegativeBalance(treasury.Balance, invoice.PaidCash, "treasury balance"); err != nil {
 				return err
 			}
 			if err := tx.Model(&treasury).Update("balance", gorm.Expr("balance + ?", invoice.PaidCash)).Error; err != nil {

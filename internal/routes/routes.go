@@ -21,8 +21,12 @@ func Setup(db *gorm.DB, cfg configs.Config) *gin.Engine {
 	}
 	r := gin.New()
 	r.Use(gin.Recovery(), gin.Logger(), middleware.Observability(), middleware.SecureHeaders(), middleware.RateLimit(180, 60_000_000_000), middleware.TenantResolver(db))
-	store := cookie.NewStore([]byte(cfg.AppSecret))
-	store.Options(sessions.Options{Path: "/", MaxAge: 28800, HttpOnly: true, SameSite: http.SameSiteLaxMode})
+	sessionSecrets := make([][]byte, 0, len(cfg.AppSecrets))
+	for _, secret := range cfg.AppSecrets {
+		sessionSecrets = append(sessionSecrets, []byte(secret))
+	}
+	store := cookie.NewStore(sessionSecrets...)
+	store.Options(sessions.Options{Path: "/", MaxAge: 28800, HttpOnly: true, Secure: cfg.AppEnv == "production", SameSite: http.SameSiteLaxMode})
 	r.Use(sessions.Sessions(cfg.SessionName, store))
 	r.Use(middleware.CSRFMiddleware(), middleware.ViewData())
 	r.Static("/static", "./static")
@@ -114,7 +118,7 @@ func Setup(db *gorm.DB, cfg configs.Config) *gin.Engine {
 	v1 := r.Group("/api/v1")
 	v1.POST("/auth/login", api.Login)
 	v1.POST("/auth/refresh", api.Refresh)
-	v1.Use(middleware.APIAuth(cfg.JWTSecret))
+	v1.Use(middleware.APIAuth(cfg.JWTSecrets...))
 	v1.POST("/mobile/devices", api.RegisterDevice)
 	v1.GET("/items", api.ListItems)
 	v1.GET("/sales", api.ListSales)

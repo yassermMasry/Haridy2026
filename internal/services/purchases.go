@@ -103,6 +103,9 @@ func (s *PurchaseService) Create(input PurchaseInput) (*models.PurchaseInvoice, 
 			if err := tx.First(&treasury).Error; err != nil {
 				return err
 			}
+			if err := ValidateNonNegativeBalance(treasury.Balance, -invoice.PaidCash, "treasury balance"); err != nil {
+				return err
+			}
 			if err := tx.Model(&treasury).Update("balance", gorm.Expr("balance - ?", invoice.PaidCash)).Error; err != nil {
 				return err
 			}
