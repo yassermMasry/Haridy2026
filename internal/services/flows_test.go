@@ -53,6 +53,116 @@ func TestSalesPurchaseReturnsTreasuryAndAccountingConsistency(t *testing.T) {
 	}
 }
 
+func TestCashSaleFullyPaidWithoutCustomer(t *testing.T) {
+	fx := testutil.NewFixture(t)
+	invoice, err := NewSalesService(fx.DB).Create(SaleInput{
+		UserID:      fx.User.ID,
+		PaymentType: "cash",
+		PaidCash:    20,
+		Lines:       []SaleLineInput{{ItemID: fx.Item.ID, Quantity: 1, UnitPrice: 20}},
+	})
+	if err != nil {
+		t.Fatalf("create cash sale: %v", err)
+	}
+	if invoice.Total != 20 || invoice.PaidCash != 20 || invoice.CustomerID != nil {
+		t.Fatalf("unexpected invoice: %+v", invoice)
+	}
+	var treasuryTx models.TreasuryTransaction
+	if err := fx.DB.Where("reference = ? AND amount = ?", invoice.Number, 20).First(&treasuryTx).Error; err != nil {
+		t.Fatalf("load treasury tx: %v", err)
+	}
+}
+
+func TestPartialPaidSalePostsRemainingToCustomer(t *testing.T) {
+	fx := testutil.NewFixture(t)
+	invoice, err := NewSalesService(fx.DB).Create(SaleInput{
+		UserID:      fx.User.ID,
+		CustomerID:  fx.Customer.ID,
+		PaymentType: "cash",
+		PaidCash:    10,
+		Lines:       []SaleLineInput{{ItemID: fx.Item.ID, Quantity: 1, UnitPrice: 25}},
+	})
+	if err != nil {
+		t.Fatalf("create partial sale: %v", err)
+	}
+	var tx models.CustomerTransaction
+	if err := fx.DB.Where("customer_id = ? AND reference = ?", fx.Customer.ID, invoice.Number).First(&tx).Error; err != nil {
+		t.Fatalf("load customer tx: %v", err)
+	}
+	if tx.Debit != 15 {
+		t.Fatalf("expected remaining 15, got %.2f", tx.Debit)
+	}
+}
+
+func TestOverpaidSaleCreatesCustomerCredit(t *testing.T) {
+	fx := testutil.NewFixture(t)
+	invoice, err := NewSalesService(fx.DB).Create(SaleInput{
+		UserID:      fx.User.ID,
+		CustomerID:  fx.Customer.ID,
+		PaymentType: "cash",
+		PaidCash:    30,
+		Lines:       []SaleLineInput{{ItemID: fx.Item.ID, Quantity: 1, UnitPrice: 20}},
+	})
+	if err != nil {
+		t.Fatalf("create overpaid sale: %v", err)
+	}
+	var tx models.CustomerTransaction
+	if err := fx.DB.Where("customer_id = ? AND reference = ?", fx.Customer.ID, invoice.Number).First(&tx).Error; err != nil {
+		t.Fatalf("load customer tx: %v", err)
+	}
+	if tx.Credit != 10 {
+		t.Fatalf("expected credit 10, got %.2f", tx.Credit)
+	}
+}
+
+func TestSaleFromSpecificWarehouseDeductsOnlyThatWarehouse(t *testing.T) {
+	fx := testutil.NewFixture(t)
+	var warehouse models.Warehouse
+	if err := fx.DB.Where("code = ?", "MAIN-WH").First(&warehouse).Error; err != nil {
+		t.Fatalf("load warehouse: %v", err)
+	}
+	if err := fx.DB.Create(&models.ItemWarehouseBalance{ItemID: fx.Item.ID, WarehouseID: warehouse.ID, Quantity: 5}).Error; err != nil {
+		t.Fatalf("create warehouse balance: %v", err)
+	}
+	if _, err := NewSalesService(fx.DB).Create(SaleInput{
+		UserID:      fx.User.ID,
+		WarehouseID: warehouse.ID,
+		PaymentType: "cash",
+		PaidCash:    20,
+		Lines:       []SaleLineInput{{ItemID: fx.Item.ID, Quantity: 2, UnitPrice: 10}},
+	}); err != nil {
+		t.Fatalf("create warehouse sale: %v", err)
+	}
+	var balance models.ItemWarehouseBalance
+	if err := fx.DB.Where("item_id = ? AND warehouse_id = ?", fx.Item.ID, warehouse.ID).First(&balance).Error; err != nil {
+		t.Fatalf("load balance: %v", err)
+	}
+	if balance.Quantity != 3 {
+		t.Fatalf("expected balance 3, got %.3f", balance.Quantity)
+	}
+}
+
+func TestSaleFromSpecificWarehouseBlocksUnavailableQuantity(t *testing.T) {
+	fx := testutil.NewFixture(t)
+	var warehouse models.Warehouse
+	if err := fx.DB.Where("code = ?", "MAIN-WH").First(&warehouse).Error; err != nil {
+		t.Fatalf("load warehouse: %v", err)
+	}
+	if err := fx.DB.Create(&models.ItemWarehouseBalance{ItemID: fx.Item.ID, WarehouseID: warehouse.ID, Quantity: 1}).Error; err != nil {
+		t.Fatalf("create warehouse balance: %v", err)
+	}
+	_, err := NewSalesService(fx.DB).Create(SaleInput{
+		UserID:      fx.User.ID,
+		WarehouseID: warehouse.ID,
+		PaymentType: "cash",
+		PaidCash:    20,
+		Lines:       []SaleLineInput{{ItemID: fx.Item.ID, Quantity: 2, UnitPrice: 10}},
+	})
+	if err == nil {
+		t.Fatal("expected unavailable warehouse quantity to fail")
+	}
+}
+
 func TestNegativeInventoryIsBlocked(t *testing.T) {
 	fx := testutil.NewFixture(t)
 	_, err := NewSalesService(fx.DB).Create(SaleInput{
@@ -116,6 +226,123 @@ func TestPriceListAndUpdateSalePrice(t *testing.T) {
 	}
 	if list.Rows[0].Status != PriceStatusLoss {
 		t.Fatalf("expected loss status, got %s", list.Rows[0].Status)
+	}
+}
+
+func TestPriceListAllUsesWarehouseTotalQuantity(t *testing.T) {
+	fx := testutil.NewFixture(t)
+	list := NewItemService(fx.DB).PriceList("DEMO-001", "all")
+	if len(list.Rows) != 1 {
+		t.Fatalf("expected one item, got %d", len(list.Rows))
+	}
+	if list.Rows[0].Quantity != fx.Item.Quantity {
+		t.Fatalf("expected total quantity %.3f, got %.3f", fx.Item.Quantity, list.Rows[0].Quantity)
+	}
+	if list.Rows[0].WarehouseName != "" {
+		t.Fatalf("expected all warehouses row, got warehouse %q", list.Rows[0].WarehouseName)
+	}
+}
+
+func TestPriceListFiltersByWarehouseQuantity(t *testing.T) {
+	fx := testutil.NewFixture(t)
+	var warehouse models.Warehouse
+	if err := fx.DB.Where("code = ?", "MAIN-WH").First(&warehouse).Error; err != nil {
+		t.Fatalf("load warehouse: %v", err)
+	}
+	if err := fx.DB.Create(&models.ItemWarehouseBalance{ItemID: fx.Item.ID, WarehouseID: warehouse.ID, Quantity: fx.Item.Quantity}).Error; err != nil {
+		t.Fatalf("create warehouse balance: %v", err)
+	}
+	list := NewItemService(fx.DB).PriceList("DEMO-001", "all", warehouse.ID)
+	if len(list.Rows) != 1 {
+		t.Fatalf("expected one item, got %d", len(list.Rows))
+	}
+	if list.Rows[0].Quantity != fx.Item.Quantity {
+		t.Fatalf("expected warehouse quantity %.3f, got %.3f", fx.Item.Quantity, list.Rows[0].Quantity)
+	}
+	if list.Rows[0].WarehouseName != warehouse.Name {
+		t.Fatalf("expected warehouse %q, got %q", warehouse.Name, list.Rows[0].WarehouseName)
+	}
+}
+
+func TestSaveItemWithExistingCategory(t *testing.T) {
+	fx := testutil.NewFixture(t)
+	service := NewItemService(fx.DB)
+	tenantID := fx.Tenant.ID
+
+	var category models.ItemCategory
+	if err := fx.DB.Where("tenant_id = ? AND name = ?", tenantID, "General").First(&category).Error; err != nil {
+		t.Fatalf("load category: %v", err)
+	}
+
+	existingItem := models.Item{TenantID: &tenantID, Name: "Category Existing Item", Code: "CAT-EXIST-001", Barcode: "CAT-EXIST-BAR", PurchasePrice: 5, SalePrice: 7, CategoryID: &category.ID}
+	if err := service.SaveWithCategory(&existingItem, ""); err != nil {
+		t.Fatalf("create item with existing category: %v", err)
+	}
+	if existingItem.CategoryID == nil || *existingItem.CategoryID != category.ID {
+		t.Fatal("expected existing category to be linked")
+	}
+}
+
+func TestSaveItemRequiresCategoryChoice(t *testing.T) {
+	fx := testutil.NewFixture(t)
+	tenantID := fx.Tenant.ID
+	item := models.Item{TenantID: &tenantID, Name: "No Category Item", Code: "NO-CAT-001", Barcode: "NO-CAT-BAR", PurchasePrice: 5, SalePrice: 7}
+	if err := NewItemService(fx.DB).SaveWithCategory(&item, ""); err == nil {
+		t.Fatal("expected category validation to fail")
+	}
+}
+
+func TestCreateItemZeroQuantityWithoutWarehouseSucceeds(t *testing.T) {
+	fx := testutil.NewFixture(t)
+	tenantID := fx.Tenant.ID
+	item := models.Item{TenantID: &tenantID, Name: "Zero Opening Item", Code: "OPEN-ZERO-001", Barcode: "OPEN-ZERO-BAR", PurchasePrice: 5, SalePrice: 7, CategoryID: fx.Item.CategoryID}
+	if err := NewItemService(fx.DB).CreateWithOpeningBalance(&item, 0); err != nil {
+		t.Fatalf("create zero quantity item: %v", err)
+	}
+	if item.ID == 0 {
+		t.Fatal("expected item to be created")
+	}
+}
+
+func TestCreateItemPositiveQuantityWithoutWarehouseFails(t *testing.T) {
+	fx := testutil.NewFixture(t)
+	tenantID := fx.Tenant.ID
+	item := models.Item{TenantID: &tenantID, Name: "Missing Warehouse Item", Code: "OPEN-NOWH-001", Barcode: "OPEN-NOWH-BAR", PurchasePrice: 5, SalePrice: 7, Quantity: 3, CategoryID: fx.Item.CategoryID}
+	err := NewItemService(fx.DB).CreateWithOpeningBalance(&item, 0)
+	if err == nil {
+		t.Fatal("expected missing warehouse to fail")
+	}
+	if err.Error() != "يجب اختيار المخزن عند إدخال كمية افتتاحية" {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestCreateItemPositiveQuantityWithWarehouseCreatesBalanceAndMovement(t *testing.T) {
+	fx := testutil.NewFixture(t)
+	tenantID := fx.Tenant.ID
+	var warehouse models.Warehouse
+	if err := fx.DB.Where("code = ?", "MAIN-WH").First(&warehouse).Error; err != nil {
+		t.Fatalf("load warehouse: %v", err)
+	}
+	item := models.Item{TenantID: &tenantID, Name: "Opening Balance Item", Code: "OPEN-BAL-001", Barcode: "OPEN-BAL-BAR", PurchasePrice: 5, SalePrice: 7, Quantity: 4, CategoryID: fx.Item.CategoryID}
+	if err := NewItemService(fx.DB).CreateWithOpeningBalance(&item, warehouse.ID); err != nil {
+		t.Fatalf("create opening item: %v", err)
+	}
+
+	var balance models.ItemWarehouseBalance
+	if err := fx.DB.Where("item_id = ? AND warehouse_id = ?", item.ID, warehouse.ID).First(&balance).Error; err != nil {
+		t.Fatalf("load warehouse balance: %v", err)
+	}
+	if balance.Quantity != 4 {
+		t.Fatalf("expected balance 4, got %.3f", balance.Quantity)
+	}
+
+	var movement models.StockMovement
+	if err := fx.DB.Where("item_id = ? AND type = ?", item.ID, models.StockOpen).First(&movement).Error; err != nil {
+		t.Fatalf("load opening movement: %v", err)
+	}
+	if movement.Quantity != 4 || movement.Reference != "رصيد افتتاحي" {
+		t.Fatalf("unexpected movement: %+v", movement)
 	}
 }
 

@@ -21,6 +21,7 @@ type SaleInput struct {
 	TenantID    *uint
 	UserID      uint
 	CustomerID  uint
+	WarehouseID uint
 	PaymentType string
 	Discount    float64
 	Tax         float64
@@ -50,6 +51,9 @@ func (s *SalesService) Create(input SaleInput) (*models.SalesInvoice, error) {
 	if len(input.Lines) == 0 {
 		return nil, errors.New("add at least one item")
 	}
+	if input.PaidCash < 0 {
+		return nil, errors.New("المدفوع لا يكون سالبًا")
+	}
 	if err := NewUsageLimitService(s.db).CheckOperationLimit(input.TenantID); err != nil {
 		return nil, err
 	}
@@ -63,6 +67,9 @@ func (s *SalesService) Create(input SaleInput) (*models.SalesInvoice, error) {
 			Discount:    input.Discount,
 			Tax:         input.Tax,
 			PaidCash:    input.PaidCash,
+		}
+		if input.WarehouseID > 0 {
+			invoice.WarehouseID = &input.WarehouseID
 		}
 		if invoice.PaymentType == "" {
 			invoice.PaymentType = "cash"
@@ -80,7 +87,14 @@ func (s *SalesService) Create(input SaleInput) (*models.SalesInvoice, error) {
 			if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&item, line.ItemID).Error; err != nil {
 				return err
 			}
-			if err := ValidateInventoryDelta(item.Quantity, -line.Quantity, item.Name); err != nil {
+			warehouseID, available, err := s.saleWarehouseBalance(tx, item.ID, input.WarehouseID)
+			if err != nil {
+				return err
+			}
+			if available == 0 {
+				available = item.Quantity
+			}
+			if err := ValidateInventoryDelta(available, -line.Quantity, item.Name); err != nil {
 				return err
 			}
 			price := line.UnitPrice
@@ -93,7 +107,18 @@ func (s *SalesService) Create(input SaleInput) (*models.SalesInvoice, error) {
 			if err := tx.Model(&item).Update("quantity", gorm.Expr("quantity - ?", line.Quantity)).Error; err != nil {
 				return err
 			}
-			if err := tx.Create(&models.StockMovement{ItemID: item.ID, Type: models.StockSale, Quantity: line.Quantity, Reference: invoice.Number, PerformedBy: &input.UserID}).Error; err != nil {
+			if warehouseID > 0 {
+				if err := tx.Model(&models.ItemWarehouseBalance{}).
+					Where("item_id = ? AND warehouse_id = ?", item.ID, warehouseID).
+					Update("quantity", gorm.Expr("quantity - ?", line.Quantity)).Error; err != nil {
+					return err
+				}
+			}
+			movement := models.StockMovement{TenantID: input.TenantID, ItemID: item.ID, Type: models.StockSale, Quantity: line.Quantity, Reference: invoice.Number, PerformedBy: &input.UserID}
+			if warehouseID > 0 {
+				movement.WarehouseID = &warehouseID
+			}
+			if err := tx.Create(&movement).Error; err != nil {
 				return err
 			}
 		}
@@ -103,8 +128,14 @@ func (s *SalesService) Create(input SaleInput) (*models.SalesInvoice, error) {
 		if invoice.PaymentType == "cash" && invoice.PaidCash <= 0 {
 			invoice.PaidCash = invoice.Total
 		}
-		if invoice.PaymentType == "credit" {
-			invoice.PaidCash = 0
+		remaining := invoice.Total - invoice.PaidCash
+		if remaining != 0 && input.CustomerID == 0 {
+			return errors.New("لا يسمح بآجل أو زيادة بدون عميل")
+		}
+		if invoice.PaymentType == "credit" && input.CustomerID == 0 {
+			return errors.New("select a customer for credit sales")
+		}
+		if remaining > 0 {
 			if input.CustomerID == 0 {
 				return errors.New("select a customer for credit sales")
 			}
@@ -112,13 +143,26 @@ func (s *SalesService) Create(input SaleInput) (*models.SalesInvoice, error) {
 			if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&customer, input.CustomerID).Error; err != nil {
 				return err
 			}
-			if customer.CreditLimit > 0 && customer.Balance+invoice.Total > customer.CreditLimit {
+			if customer.CreditLimit > 0 && customer.Balance+remaining > customer.CreditLimit {
 				return errors.New("customer credit limit exceeded")
 			}
-			if err := tx.Model(&customer).Update("balance", gorm.Expr("balance + ?", invoice.Total)).Error; err != nil {
+			if err := tx.Model(&customer).Update("balance", gorm.Expr("balance + ?", remaining)).Error; err != nil {
 				return err
 			}
-			if err := tx.Create(&models.CustomerTransaction{CustomerID: customer.ID, Type: models.CustomerSale, Debit: invoice.Total, Reference: invoice.Number, Description: "Credit sale", UserID: &input.UserID}).Error; err != nil {
+			if err := tx.Create(&models.CustomerTransaction{CustomerID: customer.ID, Type: models.CustomerSale, Debit: remaining, Reference: invoice.Number, Description: "Credit sale", UserID: &input.UserID}).Error; err != nil {
+				return err
+			}
+		}
+		if remaining < 0 {
+			credit := -remaining
+			var customer models.Customer
+			if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&customer, input.CustomerID).Error; err != nil {
+				return err
+			}
+			if err := tx.Model(&customer).Update("balance", gorm.Expr("balance - ?", credit)).Error; err != nil {
+				return err
+			}
+			if err := tx.Create(&models.CustomerTransaction{CustomerID: customer.ID, Type: models.CustomerPayment, Credit: credit, Reference: invoice.Number, Description: "Overpaid sale credit", UserID: &input.UserID}).Error; err != nil {
 				return err
 			}
 		}
@@ -140,14 +184,48 @@ func (s *SalesService) Create(input SaleInput) (*models.SalesInvoice, error) {
 				return err
 			}
 		}
-		debitAccount := "1000"
-		if invoice.PaymentType == "credit" {
-			debitAccount = "1200"
+		lines := []JournalLineInput{{AccountCode: "4000", Credit: invoice.Total}}
+		if invoice.PaidCash > 0 {
+			lines = append(lines, JournalLineInput{AccountCode: "1000", Debit: invoice.PaidCash})
 		}
-		if err := CreateJournal(tx, invoice.Number, "Sales invoice", []JournalLineInput{{AccountCode: debitAccount, Debit: invoice.Total}, {AccountCode: "4000", Credit: invoice.Total}}); err != nil {
+		if remaining > 0 {
+			lines = append(lines, JournalLineInput{AccountCode: "1200", Debit: remaining})
+		}
+		if remaining < 0 {
+			lines = append(lines, JournalLineInput{AccountCode: "1200", Credit: -remaining})
+		}
+		if err := CreateJournal(tx, invoice.Number, "Sales invoice", lines); err != nil {
 			return err
 		}
 		return Audit(tx, input.UserID, "CREATE", "sales_invoices", invoice.ID, invoice.Number)
 	})
 	return &invoice, err
+}
+
+func (s *SalesService) saleWarehouseBalance(tx *gorm.DB, itemID, requestedWarehouseID uint) (uint, float64, error) {
+	if requestedWarehouseID > 0 {
+		var balance models.ItemWarehouseBalance
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("item_id = ? AND warehouse_id = ?", itemID, requestedWarehouseID).
+			First(&balance).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return requestedWarehouseID, 0, nil
+			}
+			return 0, 0, err
+		}
+		return requestedWarehouseID, balance.Quantity, nil
+	}
+	var balances []models.ItemWarehouseBalance
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		Where("item_id = ? AND quantity > 0", itemID).
+		Find(&balances).Error; err != nil {
+		return 0, 0, err
+	}
+	if len(balances) > 1 {
+		return 0, 0, errors.New("يجب تحديد المخزن عند وجود الصنف في أكثر من مخزن")
+	}
+	if len(balances) == 1 {
+		return balances[0].WarehouseID, balances[0].Quantity, nil
+	}
+	return 0, 0, nil
 }

@@ -6,12 +6,86 @@
   <div><label class="form-label">الاسم</label><input class="form-input" name="name" value="{{.item.Name}}" required></div>
   <div><label class="form-label">الكود</label><input class="form-input" name="code" value="{{.item.Code}}" required></div>
   <div><label class="form-label">الباركود</label><input class="form-input" name="barcode" value="{{.item.Barcode}}"></div>
-  <div><label class="form-label">التصنيف</label><select class="form-input" name="category_id"><option value="">بدون</option>{{range .categories}}<option value="{{.ID}}">{{.Name}}</option>{{end}}</select></div>
+  <div>
+    <label class="form-label">التصنيف</label>
+    <div class="flex gap-2">
+      <select class="form-input" name="category_id" id="category-select">
+        <option value="">اختر تصنيف</option>
+        {{range .categories}}<option value="{{.ID}}" {{if eq $.selected_category_id .ID}}selected{{end}}>{{.Name}}</option>{{end}}
+      </select>
+      <button type="button" class="btn-secondary px-3" id="open-category-modal" title="إضافة تصنيف">+</button>
+    </div>
+  </div>
   <div><label class="form-label">سعر الشراء</label><input class="form-input" name="purchase_price" type="number" step="0.01" value="{{.item.PurchasePrice}}"></div>
   <div><label class="form-label">سعر البيع</label><input class="form-input" name="sale_price" type="number" step="0.01" value="{{.item.SalePrice}}"></div>
-  <div><label class="form-label">الكمية</label><input class="form-input" name="quantity" type="number" step="0.001" value="{{.item.Quantity}}"></div>
+  <div><label class="form-label">الكمية</label><input class="form-input" name="quantity" type="number" step="0.001" value="{{.item.Quantity}}" {{if not .is_create}}readonly{{end}}></div>
+  {{if .is_create}}
+  <div><label class="form-label">المخزن</label><select class="form-input" name="warehouse_id"><option value="">اختر مخزن</option>{{range .warehouses}}<option value="{{.ID}}">{{.Name}}</option>{{end}}</select></div>
+  {{end}}
   <div><label class="form-label">حد التنبيه</label><input class="form-input" name="minimum_stock" type="number" step="0.001" value="{{.item.MinimumStock}}"></div>
   <div class="md:col-span-2 flex gap-2"><button class="btn-primary">حفظ</button><a class="btn-secondary" href="/items">رجوع</a></div>
 </form>
+
+<div id="category-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/50 p-4">
+  <div class="w-full max-w-md rounded-lg bg-white p-5 shadow-xl">
+    <h3 class="mb-4 text-lg font-bold">إضافة تصنيف</h3>
+    <div class="mb-4">
+      <label class="form-label">اسم التصنيف</label>
+      <input class="form-input" id="quick-category-name">
+      <p class="mt-2 hidden text-sm text-red-600" id="quick-category-error"></p>
+    </div>
+    <div class="flex justify-end gap-2">
+      <button type="button" class="btn-secondary" id="close-category-modal">إلغاء</button>
+      <button type="button" class="btn-primary" id="save-category-modal">حفظ</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const modal = document.getElementById('category-modal');
+  const openButton = document.getElementById('open-category-modal');
+  const closeButton = document.getElementById('close-category-modal');
+  const saveButton = document.getElementById('save-category-modal');
+  const nameInput = document.getElementById('quick-category-name');
+  const error = document.getElementById('quick-category-error');
+  const select = document.getElementById('category-select');
+
+  const close = () => {
+    modal.classList.add('hidden');
+    modal.classList.remove('flex');
+    nameInput.value = '';
+    error.classList.add('hidden');
+    error.textContent = '';
+  };
+
+  openButton.addEventListener('click', () => {
+    modal.classList.remove('hidden');
+    modal.classList.add('flex');
+    nameInput.focus();
+  });
+  closeButton.addEventListener('click', close);
+
+  saveButton.addEventListener('click', async () => {
+    error.classList.add('hidden');
+    const body = new URLSearchParams();
+    body.set('_csrf', '{{.csrf}}');
+    body.set('name', nameInput.value);
+    const response = await fetch('/item-categories/quick-create', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/x-www-form-urlencoded', 'X-CSRF-Token': '{{.csrf}}'},
+      body
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      error.textContent = data.error || 'تعذر حفظ التصنيف';
+      error.classList.remove('hidden');
+      return;
+    }
+    select.add(new Option(data.name, data.id, true, true));
+    close();
+  });
+})();
+</script>
 {{template "app_end" .}}
 {{end}}

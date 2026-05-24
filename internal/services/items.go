@@ -4,10 +4,12 @@ import (
 	"errors"
 	"math"
 	"strings"
+	"time"
 
 	"haridy2026/internal/models"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type ItemService struct{ db *gorm.DB }
@@ -17,6 +19,12 @@ type ItemList struct {
 	Page       int
 	TotalPages int
 	Query      string
+}
+
+type SaleItemOption struct {
+	Item      models.Item
+	Quantity  float64
+	Warehouse string
 }
 
 const WeakMarginPercent = 10
@@ -34,6 +42,8 @@ type PriceListRow struct {
 	Item               models.Item
 	AverageCost        *float64
 	MarginPercent      float64
+	WarehouseName      string
+	Quantity           float64
 	Status             PriceStatus
 	StatusLabel        string
 	StatusClass        string
@@ -49,18 +59,55 @@ type PriceListStats struct {
 }
 
 type PriceList struct {
-	Rows   []PriceListRow
-	Stats  PriceListStats
-	Query  string
-	Filter string
+	Rows        []PriceListRow
+	Stats       PriceListStats
+	Query       string
+	Filter      string
+	WarehouseID uint
 }
 
 func NewItemService(db *gorm.DB) *ItemService { return &ItemService{db: db} }
 
-func (s *ItemService) Categories() []models.ItemCategory {
+func (s *ItemService) Categories(tenantID ...uint) []models.ItemCategory {
 	var categories []models.ItemCategory
-	s.db.Order("name asc").Find(&categories)
+	query := s.db.Order("name asc")
+	if len(tenantID) > 0 && tenantID[0] > 0 {
+		query = query.Where("tenant_id = ? OR tenant_id IS NULL", tenantID[0])
+	}
+	query.Find(&categories)
 	return categories
+}
+
+func (s *ItemService) Warehouses(tenantID uint) []models.Warehouse {
+	var warehouses []models.Warehouse
+	query := s.db.Order("name asc")
+	if tenantID > 0 {
+		query = query.Where("tenant_id = ? OR tenant_id IS NULL", tenantID)
+	}
+	query.Find(&warehouses)
+	return warehouses
+}
+
+func (s *ItemService) SaleItems(warehouseID uint) []SaleItemOption {
+	if warehouseID > 0 {
+		var balances []models.ItemWarehouseBalance
+		s.db.Preload("Item").Preload("Warehouse").
+			Where("warehouse_id = ? AND quantity > 0", warehouseID).
+			Find(&balances)
+		options := make([]SaleItemOption, 0, len(balances))
+		for _, balance := range balances {
+			options = append(options, SaleItemOption{Item: balance.Item, Quantity: balance.Quantity, Warehouse: balance.Warehouse.Name})
+		}
+		return options
+	}
+	var items []models.Item
+	s.db.Order("name asc").Find(&items)
+	s.applyWarehouseQuantities(items)
+	options := make([]SaleItemOption, 0, len(items))
+	for _, item := range items {
+		options = append(options, SaleItemOption{Item: item, Quantity: item.Quantity})
+	}
+	return options
 }
 
 func (s *ItemService) List(query string, page int) ItemList {
@@ -77,6 +124,7 @@ func (s *ItemService) List(query string, page int) ItemList {
 	}
 	q.Count(&total)
 	q.Order("created_at desc").Limit(limit).Offset((page - 1) * limit).Find(&items)
+	s.applyWarehouseQuantities(items)
 	return ItemList{Items: items, Page: page, TotalPages: int(math.Ceil(float64(total) / float64(limit))), Query: query}
 }
 
@@ -133,10 +181,50 @@ func (s *ItemService) Save(item *models.Item) error {
 		"barcode":        item.Barcode,
 		"purchase_price": item.PurchasePrice,
 		"sale_price":     item.SalePrice,
-		"quantity":       item.Quantity,
 		"minimum_stock":  item.MinimumStock,
 		"category_id":    item.CategoryID,
 	}).Error
+}
+
+func (s *ItemService) SaveWithCategory(item *models.Item, newCategoryName string) error {
+	if strings.TrimSpace(newCategoryName) == "" && item.CategoryID == nil {
+		return errors.New("التصنيف مطلوب")
+	}
+	return s.Save(item)
+}
+
+func (s *ItemService) CreateWithOpeningBalance(item *models.Item, warehouseID uint) error {
+	if item.Quantity > 0 && warehouseID == 0 {
+		return errors.New("يجب اختيار المخزن عند إدخال كمية افتتاحية")
+	}
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		if err := (&ItemService{db: tx}).SaveWithCategory(item, ""); err != nil {
+			return err
+		}
+		if item.Quantity <= 0 {
+			return nil
+		}
+		var balance models.ItemWarehouseBalance
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("item_id = ? AND warehouse_id = ?", item.ID, warehouseID).
+			FirstOrCreate(&balance, models.ItemWarehouseBalance{ItemID: item.ID, WarehouseID: warehouseID}).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(&balance).Update("quantity", gorm.Expr("quantity + ?", item.Quantity)).Error; err != nil {
+			return err
+		}
+		movement := models.StockMovement{
+			TenantID:    item.TenantID,
+			ItemID:      item.ID,
+			WarehouseID: &warehouseID,
+			Type:        models.StockOpen,
+			Quantity:    item.Quantity,
+			Reference:   "رصيد افتتاحي",
+			Notes:       "رصيد افتتاحي",
+			CreatedAt:   time.Now(),
+		}
+		return tx.Create(&movement).Error
+	})
 }
 
 func (s *ItemService) Delete(id uint) error {
@@ -184,9 +272,62 @@ func (s *ItemService) Alerts() []models.Item {
 	return items
 }
 
-func (s *ItemService) PriceList(query, filter string) PriceList {
+func (s *ItemService) applyWarehouseQuantities(items []models.Item) {
+	if len(items) == 0 {
+		return
+	}
+	ids := make([]uint, 0, len(items))
+	index := map[uint]int{}
+	for i := range items {
+		ids = append(ids, items[i].ID)
+		index[items[i].ID] = i
+	}
+	var rows []struct {
+		ItemID uint
+		Total  float64
+	}
+	if err := s.db.Model(&models.ItemWarehouseBalance{}).
+		Select("item_id, COALESCE(SUM(quantity),0) AS total").
+		Where("item_id IN ?", ids).
+		Group("item_id").
+		Scan(&rows).Error; err != nil {
+		return
+	}
+	for _, row := range rows {
+		if i, ok := index[row.ItemID]; ok {
+			items[i].Quantity = row.Total
+		}
+	}
+}
+
+func (s *ItemService) PriceList(query, filter string, warehouseID ...uint) PriceList {
 	query = strings.TrimSpace(query)
 	filter = strings.TrimSpace(filter)
+	selectedWarehouseID := uint(0)
+	if len(warehouseID) > 0 {
+		selectedWarehouseID = warehouseID[0]
+	}
+	list := PriceList{Query: query, Filter: filter, WarehouseID: selectedWarehouseID}
+
+	if selectedWarehouseID > 0 {
+		var balances []models.ItemWarehouseBalance
+		s.db.Preload("Item.Category").Preload("Warehouse").
+			Where("warehouse_id = ?", selectedWarehouseID).
+			Find(&balances)
+		for _, balance := range balances {
+			item := balance.Item
+			if !matchesItemQuery(item, query) {
+				continue
+			}
+			item.Quantity = balance.Quantity
+			row := priceListRow(item)
+			row.WarehouseName = balance.Warehouse.Name
+			row.Quantity = balance.Quantity
+			list.addPriceListRow(row, filter)
+		}
+		return list
+	}
+
 	var items []models.Item
 	q := s.db.Preload("Category").Order("code asc")
 	if query != "" {
@@ -194,25 +335,40 @@ func (s *ItemService) PriceList(query, filter string) PriceList {
 		q = q.Where("name LIKE ? OR code LIKE ? OR barcode LIKE ?", like, like, like)
 	}
 	q.Find(&items)
+	s.applyWarehouseQuantities(items)
 
-	list := PriceList{Query: query, Filter: filter}
 	for _, item := range items {
 		row := priceListRow(item)
-		switch row.Status {
-		case PriceStatusNoPrice:
-			list.Stats.NoPrice++
-		case PriceStatusLoss:
-			list.Stats.Loss++
-		case PriceStatusWeak:
-			list.Stats.Weak++
-		case PriceStatusGood:
-			list.Stats.Good++
-		}
-		if filter == "" || filter == "all" || string(row.Status) == filter {
-			list.Rows = append(list.Rows, row)
-		}
+		row.Quantity = item.Quantity
+		list.addPriceListRow(row, filter)
 	}
 	return list
+}
+
+func (l *PriceList) addPriceListRow(row PriceListRow, filter string) {
+	switch row.Status {
+	case PriceStatusNoPrice:
+		l.Stats.NoPrice++
+	case PriceStatusLoss:
+		l.Stats.Loss++
+	case PriceStatusWeak:
+		l.Stats.Weak++
+	case PriceStatusGood:
+		l.Stats.Good++
+	}
+	if filter == "" || filter == "all" || string(row.Status) == filter {
+		l.Rows = append(l.Rows, row)
+	}
+}
+
+func matchesItemQuery(item models.Item, query string) bool {
+	if query == "" {
+		return true
+	}
+	query = strings.ToLower(query)
+	return strings.Contains(strings.ToLower(item.Name), query) ||
+		strings.Contains(strings.ToLower(item.Code), query) ||
+		strings.Contains(strings.ToLower(item.Barcode), query)
 }
 
 func (s *ItemService) UpdateSalePrice(id uint, salePrice float64) (bool, error) {

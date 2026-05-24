@@ -24,7 +24,7 @@ func Seed(db *gorm.DB) error {
 		return err
 	}
 	var tenant models.Tenant
-	if err := db.Where("slug = ?", "demo").FirstOrCreate(&tenant, models.Tenant{Name: "Demo Company", Slug: "demo", Subdomain: "demo", Status: "trial"}).Error; err != nil {
+	if err := db.Unscoped().Where("slug = ?", "demo").FirstOrCreate(&tenant, models.Tenant{Name: "Demo Company", Slug: "demo", Subdomain: "demo", Status: "trial"}).Error; err != nil {
 		return err
 	}
 	var setting models.CompanySetting
@@ -36,11 +36,11 @@ func Seed(db *gorm.DB) error {
 		return err
 	}
 	var branch models.Branch
-	if err := db.Where("code = ?", "MAIN").FirstOrCreate(&branch, models.Branch{TenantID: &tenant.ID, Name: "Main Branch", Code: "MAIN", IsActive: true}).Error; err != nil {
+	if err := db.Unscoped().Where("code = ?", "MAIN").FirstOrCreate(&branch, models.Branch{TenantID: &tenant.ID, Name: "Main Branch", Code: "MAIN", IsActive: true}).Error; err != nil {
 		return err
 	}
 	var warehouse models.Warehouse
-	if err := db.Where("code = ?", "MAIN-WH").FirstOrCreate(&warehouse, models.Warehouse{TenantID: &tenant.ID, Name: "Main Warehouse", Code: "MAIN-WH", BranchID: branch.ID, IsActive: true}).Error; err != nil {
+	if err := db.Unscoped().Where("code = ?", "MAIN-WH").FirstOrCreate(&warehouse, models.Warehouse{TenantID: &tenant.ID, Name: "Main Warehouse", Code: "MAIN-WH", BranchID: branch.ID, IsActive: true}).Error; err != nil {
 		return err
 	}
 
@@ -83,7 +83,7 @@ func Seed(db *gorm.DB) error {
 		return err
 	}
 	var category models.ItemCategory
-	if err := db.Where("name = ?", "General").FirstOrCreate(&category, models.ItemCategory{TenantID: &tenant.ID, Name: "General"}).Error; err != nil {
+	if err := db.Unscoped().Where("name = ?", "General").FirstOrCreate(&category, models.ItemCategory{TenantID: &tenant.ID, Name: "General"}).Error; err != nil {
 		return err
 	}
 	accounts := []models.ChartOfAccount{
@@ -142,16 +142,24 @@ func Seed(db *gorm.DB) error {
 		return err
 	}
 	var demoCustomer models.Customer
-	if err := db.Where("name = ?", "Demo Customer").FirstOrCreate(&demoCustomer, models.Customer{TenantID: &tenant.ID, Name: "Demo Customer", Phone: "01000000000", CreditLimit: 10000, BranchID: &branch.ID}).Error; err != nil {
+	if err := db.Unscoped().Where("name = ?", "Demo Customer").FirstOrCreate(&demoCustomer, models.Customer{TenantID: &tenant.ID, Name: "Demo Customer", Phone: "01000000000", CreditLimit: 10000, BranchID: &branch.ID}).Error; err != nil {
 		return err
 	}
 	var demoSupplier models.Supplier
-	if err := db.Where("name = ?", "Demo Supplier").FirstOrCreate(&demoSupplier, models.Supplier{TenantID: &tenant.ID, Name: "Demo Supplier", Phone: "01111111111", BranchID: &branch.ID}).Error; err != nil {
+	if err := db.Unscoped().Where("name = ?", "Demo Supplier").FirstOrCreate(&demoSupplier, models.Supplier{TenantID: &tenant.ID, Name: "Demo Supplier", Phone: "01111111111", BranchID: &branch.ID}).Error; err != nil {
 		return err
 	}
-	var demoItem models.Item
-	if err := db.Where("code = ?", "DEMO-001").FirstOrCreate(&demoItem, models.Item{TenantID: &tenant.ID, Name: "Demo Item", Code: "DEMO-001", Barcode: "622000000001", PurchasePrice: 50, SalePrice: 75, Quantity: 20, MinimumStock: 5, CategoryID: &category.ID}).Error; err != nil {
+	demoItem := models.Item{TenantID: &tenant.ID, Name: "Demo Item", Code: "DEMO-001", Barcode: "622000000001", PurchasePrice: 50, SalePrice: 75, Quantity: 20, MinimumStock: 5, CategoryID: &category.ID}
+	if err := db.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "code"}}, DoNothing: true}).Create(&demoItem).Error; err != nil {
 		return err
+	}
+	if demoItem.ID == 0 {
+		if err := db.Unscoped().Where("LOWER(TRIM(code)) = LOWER(TRIM(?))", "DEMO-001").First(&demoItem).Error; err != nil {
+			return err
+		}
+	}
+	if demoItem.ID == 0 {
+		return gorm.ErrRecordNotFound
 	}
 	var balance models.ItemWarehouseBalance
 	if err := db.Where("item_id = ? AND warehouse_id = ?", demoItem.ID, warehouse.ID).FirstOrCreate(&balance, models.ItemWarehouseBalance{ItemID: demoItem.ID, WarehouseID: warehouse.ID, Quantity: demoItem.Quantity}).Error; err != nil {

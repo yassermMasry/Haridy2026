@@ -113,6 +113,7 @@ const (
 	StockOut  StockMovementType = "OUT"
 	StockSale StockMovementType = "SALE"
 	StockBuy  StockMovementType = "PURCHASE"
+	StockOpen StockMovementType = "OPENING"
 )
 
 type StockMovement struct {

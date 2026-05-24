@@ -1,0 +1,40 @@
+{{define "item_categories/index.html"}}
+{{template "app_start" .}}
+<div class="mb-5 flex items-center justify-between gap-3">
+  <h2 class="text-2xl font-bold">التصنيفات</h2>
+</div>
+
+<form method="post" action="/item-categories" class="mb-5 flex gap-2 rounded-lg border bg-white p-4">
+  <input type="hidden" name="_csrf" value="{{.csrf}}">
+  <input class="form-input" name="name" placeholder="اسم التصنيف" required>
+  <button class="btn-primary">إضافة</button>
+</form>
+
+<div class="overflow-hidden rounded-lg border bg-white">
+  <table class="w-full text-sm">
+    <thead class="bg-slate-100 text-slate-700">
+      <tr>
+        <th class="p-3 text-right">الاسم</th>
+        <th class="p-3 text-right">إجراءات</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .categories}}
+      <tr class="border-t">
+        <td class="p-3">{{.Name}}</td>
+        <td class="flex gap-2 p-3">
+          <a class="btn-secondary" href="/item-categories/{{.ID}}/edit">تعديل</a>
+          <form method="post" action="/item-categories/{{.ID}}/delete">
+            <input type="hidden" name="_csrf" value="{{$.csrf}}">
+            <button class="btn-secondary">حذف</button>
+          </form>
+        </td>
+      </tr>
+      {{else}}
+      <tr><td class="p-3 text-slate-500" colspan="2">لا توجد تصنيفات</td></tr>
+      {{end}}
+    </tbody>
+  </table>
+</div>
+{{template "app_end" .}}
+{{end}}

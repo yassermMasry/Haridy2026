@@ -28,7 +28,9 @@ func (h *ItemHandler) Index(c *gin.Context) {
 
 func (h *ItemHandler) PriceList(c *gin.Context) {
 	view := c.MustGet("view").(gin.H)
-	view["priceList"] = h.service.PriceList(c.Query("q"), c.DefaultQuery("status", "all"))
+	tenantID := middleware.CurrentTenantID(c)
+	view["warehouses"] = h.service.Warehouses(tenantID)
+	view["priceList"] = h.service.PriceList(c.Query("q"), c.DefaultQuery("status", "all"), parseUint(c.Query("warehouse_id")))
 	c.HTML(http.StatusOK, "items/price_list.html", view)
 }
 
@@ -49,15 +51,19 @@ func (h *ItemHandler) UpdatePrice(c *gin.Context) {
 
 func (h *ItemHandler) Create(c *gin.Context) {
 	view := c.MustGet("view").(gin.H)
+	tenantID := middleware.CurrentTenantID(c)
 	view["item"] = models.Item{}
-	view["categories"] = h.service.Categories()
+	view["categories"] = h.service.Categories(tenantID)
+	view["warehouses"] = h.service.Warehouses(tenantID)
+	view["selected_category_id"] = uint(0)
+	view["is_create"] = true
 	view["action"] = "/items"
 	c.HTML(http.StatusOK, "items/form.html", view)
 }
 
 func (h *ItemHandler) Store(c *gin.Context) {
 	item := h.bindItem(c)
-	if err := h.service.Save(&item); err != nil {
+	if err := h.service.CreateWithOpeningBalance(&item, parseUint(c.PostForm("warehouse_id"))); err != nil {
 		middleware.SetFlash(sessions.Default(c), err.Error())
 		c.Redirect(http.StatusFound, "/items/new")
 		return
@@ -75,7 +81,12 @@ func (h *ItemHandler) Edit(c *gin.Context) {
 	}
 	view := c.MustGet("view").(gin.H)
 	view["item"] = item
-	view["categories"] = h.service.Categories()
+	view["categories"] = h.service.Categories(middleware.CurrentTenantID(c))
+	view["selected_category_id"] = uint(0)
+	if item.CategoryID != nil {
+		view["selected_category_id"] = *item.CategoryID
+	}
+	view["is_create"] = false
 	view["action"] = "/items/" + c.Param("id")
 	c.HTML(http.StatusOK, "items/form.html", view)
 }
@@ -83,7 +94,7 @@ func (h *ItemHandler) Edit(c *gin.Context) {
 func (h *ItemHandler) Update(c *gin.Context) {
 	item := h.bindItem(c)
 	item.ID = parseUint(c.Param("id"))
-	if err := h.service.Save(&item); err != nil {
+	if err := h.service.SaveWithCategory(&item, ""); err != nil {
 		middleware.SetFlash(sessions.Default(c), err.Error())
 		c.Redirect(http.StatusFound, "/items/"+c.Param("id")+"/edit")
 		return
@@ -108,7 +119,13 @@ func (h *ItemHandler) bindItem(c *gin.Context) models.Item {
 	if categoryID > 0 {
 		categoryPtr = &categoryID
 	}
+	tenantID := middleware.CurrentTenantID(c)
+	var tenantPtr *uint
+	if tenantID > 0 {
+		tenantPtr = &tenantID
+	}
 	return models.Item{
+		TenantID:      tenantPtr,
 		Name:          c.PostForm("name"),
 		Code:          c.PostForm("code"),
 		Barcode:       c.PostForm("barcode"),

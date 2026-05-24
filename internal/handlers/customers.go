@@ -78,6 +78,15 @@ func (h *CustomerHandler) Receive(c *gin.Context) {
 	c.Redirect(http.StatusFound, "/customers/"+c.Param("id"))
 }
 
+func (h *CustomerHandler) QuickCreate(c *gin.Context) {
+	customer := bindCustomer(c)
+	if err := h.service.Save(&customer, middleware.CurrentUserID(c)); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"id": customer.ID, "name": customer.Name})
+}
+
 func bindCustomer(c *gin.Context) models.Customer {
 	return models.Customer{Name: c.PostForm("name"), Phone: c.PostForm("phone"), Address: c.PostForm("address"), Notes: c.PostForm("notes"), CreditLimit: parseFloat(c.PostForm("credit_limit"))}
 }

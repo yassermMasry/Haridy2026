@@ -30,7 +30,10 @@ func (h *SalesHandler) Index(c *gin.Context) {
 
 func (h *SalesHandler) Create(c *gin.Context) {
 	view := c.MustGet("view").(gin.H)
-	view["items"] = h.items.List("", 1).Items
+	warehouseID := parseUint(c.Query("warehouse_id"))
+	view["items"] = h.items.SaleItems(warehouseID)
+	view["warehouses"] = h.items.Warehouses(middleware.CurrentTenantID(c))
+	view["selected_warehouse_id"] = warehouseID
 	view["customers"] = h.customers.List()
 	c.HTML(http.StatusOK, "sales/create.html", view)
 }
@@ -58,7 +61,7 @@ func (h *SalesHandler) Store(c *gin.Context) {
 		lines = append(lines, services.SaleLineInput{ItemID: itemID, Quantity: parseFloat(quantities[i]), UnitPrice: price})
 	}
 	invoice, err := h.service.Create(services.SaleInput{
-		TenantID: tenantPtr, UserID: middleware.CurrentUserID(c), CustomerID: parseUint(c.PostForm("customer_id")), PaymentType: c.PostForm("payment_type"), Discount: parseFloat(c.PostForm("discount")), Tax: parseFloat(c.PostForm("tax")), PaidCash: parseFloat(c.PostForm("paid_cash")), Lines: lines,
+		TenantID: tenantPtr, UserID: middleware.CurrentUserID(c), CustomerID: parseUint(c.PostForm("customer_id")), WarehouseID: parseUint(c.PostForm("warehouse_id")), PaymentType: c.PostForm("payment_type"), Discount: parseFloat(c.PostForm("discount")), Tax: parseFloat(c.PostForm("tax")), PaidCash: parseFloat(c.PostForm("paid_cash")), Lines: lines,
 	})
 	if err != nil {
 		middleware.SetFlash(sessions.Default(c), err.Error())

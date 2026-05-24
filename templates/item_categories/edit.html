@@ -1,0 +1,16 @@
+{{define "item_categories/edit.html"}}
+{{template "app_start" .}}
+<h2 class="mb-5 text-2xl font-bold">تعديل التصنيف</h2>
+<form method="post" action="/item-categories/{{.category.ID}}" class="grid max-w-xl gap-4 rounded-lg border bg-white p-5">
+  <input type="hidden" name="_csrf" value="{{.csrf}}">
+  <div>
+    <label class="form-label">اسم التصنيف</label>
+    <input class="form-input" name="name" value="{{.category.Name}}" required>
+  </div>
+  <div class="flex gap-2">
+    <button class="btn-primary">حفظ</button>
+    <a class="btn-secondary" href="/item-categories">إلغاء</a>
+  </div>
+</form>
+{{template "app_end" .}}
+{{end}}

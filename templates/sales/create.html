@@ -3,10 +3,21 @@
 <h2 class="mb-5 text-2xl font-bold">فاتورة بيع</h2>
 <form method="post" action="/sales" class="rounded-lg border bg-white p-5" id="invoice-form">
   <input type="hidden" name="_csrf" value="{{.csrf}}">
-  <div class="mb-4 grid gap-3 md:grid-cols-3">
-    <input id="barcode-input" class="form-input" placeholder="امسح الباركود أو اختر الصنف">
+  <input type="hidden" name="warehouse_id" value="{{.selected_warehouse_id}}">
+  <div class="mb-4 grid gap-3 md:grid-cols-5">
+    <div class="relative">
+      <input id="barcode-input" class="form-input" placeholder="بحث بالاسم أو الكود أو الباركود">
+      <div id="item-search-results" class="absolute z-40 mt-1 hidden max-h-80 w-full overflow-auto rounded-md border bg-white shadow-lg"></div>
+    </div>
+    <select class="form-input" id="warehouse-filter">
+      <option value="">كل المخازن</option>
+      {{range .warehouses}}<option value="{{.ID}}" {{if eq $.selected_warehouse_id .ID}}selected{{end}}>{{.Name}}</option>{{end}}
+    </select>
     <select class="form-input" name="payment_type"><option value="cash">نقدي</option><option value="credit">آجل</option></select>
-    <select class="form-input" name="customer_id"><option value="">اختر العميل للبيع الآجل</option>{{range .customers}}<option value="{{.ID}}">{{.Name}} - رصيد {{printf "%.2f" .Balance}}</option>{{end}}</select>
+    <div class="flex gap-2">
+      <select class="form-input" name="customer_id" id="customer-select"><option value="">اختر العميل</option>{{range .customers}}<option value="{{.ID}}">{{.Name}} - رصيد {{printf "%.2f" .Balance}}</option>{{end}}</select>
+      <button type="button" class="btn-secondary px-3" id="open-customer-modal" title="إضافة عميل">+</button>
+    </div>
     <button type="button" class="btn-secondary" id="add-row">إضافة سطر</button>
   </div>
   <div class="overflow-x-auto">
@@ -17,21 +28,38 @@
   </div>
   <template id="row-template">
     <tr class="border-t">
-      <td><select name="item_id[]" class="form-input item-select">{{range .items}}<option value="{{.ID}}" data-price="{{.SalePrice}}" data-barcode="{{.Barcode}}">{{.Name}} - {{.Code}}</option>{{end}}</select></td>
+      <td><select name="item_id[]" class="form-input item-select">{{range .items}}<option value="{{.Item.ID}}" data-price="{{.Item.SalePrice}}" data-barcode="{{.Item.Barcode}}" data-code="{{.Item.Code}}" data-name="{{.Item.Name}}" data-quantity="{{printf "%.3f" .Quantity}}">{{.Item.Name}} - {{.Item.Code}} ({{printf "%.3f" .Quantity}})</option>{{end}}</select></td>
       <td><input name="quantity[]" class="form-input qty" type="number" step="0.001" value="1"></td>
       <td><input name="price[]" class="form-input price" type="number" step="0.01"></td>
       <td class="line-total p-3 font-bold">0.00</td>
       <td><button type="button" class="btn-danger remove-row">حذف</button></td>
     </tr>
   </template>
-  <div class="mt-5 grid gap-4 md:grid-cols-4">
+  <div class="mt-5 grid gap-4 md:grid-cols-5">
     <div><label class="form-label">خصم</label><input name="discount" id="discount" class="form-input" type="number" step="0.01" value="0"></div>
     <div><label class="form-label">ضريبة</label><input name="tax" id="tax" class="form-input" type="number" step="0.01" value="0"></div>
-    <div><label class="form-label">دفع نقدي</label><input name="paid_cash" id="paid_cash" class="form-input" type="number" step="0.01" value="0"></div>
+    <div><label class="form-label">المدفوع</label><input name="paid_cash" id="paid_cash" class="form-input" type="number" step="0.01" value="0"></div>
     <div class="rounded-md bg-slate-950 p-4 text-white"><span class="text-sm">الإجمالي</span><div class="text-2xl font-bold" id="grand-total">0.00</div></div>
+    <div class="rounded-md border bg-slate-50 p-4"><span class="text-sm text-slate-500">الباقي / الحالة</span><div class="font-bold" id="remaining-total">0.00</div><div class="text-sm" id="invoice-status">-</div></div>
   </div>
   <button class="btn-primary mt-5">حفظ الفاتورة</button>
 </form>
+
+<div id="customer-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/50 p-4">
+  <div class="w-full max-w-md rounded-lg bg-white p-5 shadow-xl">
+    <h3 class="mb-4 text-lg font-bold">إضافة عميل</h3>
+    <div class="grid gap-3">
+      <input class="form-input" id="quick-customer-name" placeholder="اسم العميل">
+      <input class="form-input" id="quick-customer-phone" placeholder="الهاتف">
+      <input class="form-input" id="quick-customer-address" placeholder="العنوان">
+      <p class="hidden text-sm text-red-600" id="quick-customer-error"></p>
+    </div>
+    <div class="mt-4 flex justify-end gap-2">
+      <button type="button" class="btn-secondary" id="close-customer-modal">إلغاء</button>
+      <button type="button" class="btn-primary" id="save-customer-modal">حفظ</button>
+    </div>
+  </div>
+</div>
 <script src="/static/js/sales.js"></script>
 {{template "app_end" .}}
 {{end}}

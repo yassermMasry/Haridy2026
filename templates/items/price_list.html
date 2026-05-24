@@ -11,8 +11,12 @@
   <div class="rounded-md border border-green-200 bg-green-50 p-4"><div class="text-sm text-green-700">جيد</div><div class="text-2xl font-bold">{{.priceList.Stats.Good}}</div></div>
 </div>
 
-<form class="mt-4 grid gap-2 rounded-md border bg-white p-4 md:grid-cols-[1fr_auto_auto]" method="get">
+<form class="mt-4 grid gap-2 rounded-md border bg-white p-4 md:grid-cols-[1fr_auto_auto_auto]" method="get">
   <input class="form-input" name="q" value="{{.priceList.Query}}" placeholder="بحث بالاسم أو الكود أو الباركود">
+  <select class="form-input" name="warehouse_id">
+    <option value="" {{if eq .priceList.WarehouseID 0}}selected{{end}}>الكل</option>
+    {{range .warehouses}}<option value="{{.ID}}" {{if eq $.priceList.WarehouseID .ID}}selected{{end}}>{{.Name}}</option>{{end}}
+  </select>
   <select class="form-input" name="status">
     <option value="all" {{if eq .priceList.Filter "all"}}selected{{end}}>الكل</option>
     <option value="no_price" {{if eq .priceList.Filter "no_price"}}selected{{end}}>بدون سعر بيع</option>
@@ -30,6 +34,7 @@
         <th>كود الصنف</th>
         <th>اسم الصنف</th>
         <th>التصنيف</th>
+        <th>المخزن / الكمية</th>
         <th>سعر الشراء</th>
         <th>متوسط التكلفة</th>
         <th>سعر البيع الحالي</th>
@@ -44,6 +49,7 @@
         <td>{{.Item.Code}}</td>
         <td>{{.Item.Name}}</td>
         <td>{{if .Item.Category}}{{.Item.Category.Name}}{{else}}-{{end}}</td>
+        <td>{{if .WarehouseName}}{{.WarehouseName}} / {{printf "%.3f" .Quantity}}{{else}}إجمالي الكمية / {{printf "%.3f" .Quantity}}{{end}}</td>
         <td>{{printf "%.2f" .Item.PurchasePrice}}</td>
         <td>{{if .AverageCost}}{{printf "%.2f" .AverageCost}}{{else}}-{{end}}</td>
         <td>{{printf "%.2f" .Item.SalePrice}}</td>
@@ -57,7 +63,7 @@
           </form>
         </td>
       </tr>
-      {{else}}<tr><td colspan="9" class="p-8 text-center text-slate-500">لا توجد أصناف</td></tr>{{end}}
+      {{else}}<tr><td colspan="10" class="p-8 text-center text-slate-500">لا توجد أصناف</td></tr>{{end}}
     </tbody>
   </table>
 </div>
