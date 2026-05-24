@@ -18,6 +18,7 @@ type SaleLineInput struct {
 }
 
 type SaleInput struct {
+	TenantID    *uint
 	UserID      uint
 	CustomerID  uint
 	PaymentType string
@@ -49,9 +50,13 @@ func (s *SalesService) Create(input SaleInput) (*models.SalesInvoice, error) {
 	if len(input.Lines) == 0 {
 		return nil, errors.New("add at least one item")
 	}
+	if err := NewUsageLimitService(s.db).CheckOperationLimit(input.TenantID); err != nil {
+		return nil, err
+	}
 	var invoice models.SalesInvoice
 	err := s.db.Transaction(func(tx *gorm.DB) error {
 		invoice = models.SalesInvoice{
+			TenantID:    input.TenantID,
 			Number:      fmt.Sprintf("INV-%s", time.Now().Format("20060102150405")),
 			UserID:      input.UserID,
 			PaymentType: input.PaymentType,

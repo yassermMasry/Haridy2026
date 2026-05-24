@@ -26,6 +26,27 @@ func (h *ItemHandler) Index(c *gin.Context) {
 	c.HTML(http.StatusOK, "items/index.html", view)
 }
 
+func (h *ItemHandler) PriceList(c *gin.Context) {
+	view := c.MustGet("view").(gin.H)
+	view["priceList"] = h.service.PriceList(c.Query("q"), c.DefaultQuery("status", "all"))
+	c.HTML(http.StatusOK, "items/price_list.html", view)
+}
+
+func (h *ItemHandler) UpdatePrice(c *gin.Context) {
+	warnBelowCost, err := h.service.UpdateSalePrice(parseUint(c.Param("id")), parseFloat(c.PostForm("sale_price")))
+	if err != nil {
+		middleware.SetFlash(sessions.Default(c), err.Error())
+		c.Redirect(http.StatusFound, "/price-list")
+		return
+	}
+	if warnBelowCost {
+		middleware.SetFlash(sessions.Default(c), "تم حفظ سعر البيع مع تحذير: السعر أقل من التكلفة")
+	} else {
+		middleware.SetFlash(sessions.Default(c), "تم تحديث سعر البيع")
+	}
+	c.Redirect(http.StatusFound, "/price-list")
+}
+
 func (h *ItemHandler) Create(c *gin.Context) {
 	view := c.MustGet("view").(gin.H)
 	view["item"] = models.Item{}
@@ -72,7 +93,11 @@ func (h *ItemHandler) Update(c *gin.Context) {
 }
 
 func (h *ItemHandler) Delete(c *gin.Context) {
-	_ = h.service.Delete(parseUint(c.Param("id")))
+	if err := h.service.Delete(parseUint(c.Param("id"))); err != nil {
+		middleware.SetFlash(sessions.Default(c), err.Error())
+		c.Redirect(http.StatusFound, "/items")
+		return
+	}
 	middleware.SetFlash(sessions.Default(c), "تم حذف الصنف")
 	c.Redirect(http.StatusFound, "/items")
 }

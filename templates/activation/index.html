@@ -1,0 +1,15 @@
+{{define "activation/index.html"}}
+{{template "app_start" .}}
+<h2 class="mb-5 text-2xl font-bold">تفعيل النسخة</h2>
+<form method="post" action="/activation" class="grid gap-4 rounded-lg border bg-white p-5">
+  <input type="hidden" name="_csrf" value="{{.csrf}}">
+  <div>
+    <label class="form-label">كود التفعيل</label>
+    <input class="form-input" name="code" autocomplete="off" required>
+  </div>
+  <div>
+    <button class="btn-primary">تفعيل</button>
+  </div>
+</form>
+{{template "app_end" .}}
+{{end}}

@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -13,9 +15,11 @@ import (
 	"haridy2026/internal/testutil"
 
 	"github.com/golang-jwt/jwt/v5"
+	"golang.org/x/crypto/bcrypt"
 )
 
 func TestAPIItemsAreTenantIsolated(t *testing.T) {
+	testutil.ChdirRepoRoot(t)
 	fx := testutil.NewFixture(t)
 	other := models.Tenant{Name: "Other Co", Slug: "other", Subdomain: "other", Status: "trial"}
 	if err := fx.DB.Create(&other).Error; err != nil {
@@ -56,6 +60,7 @@ func TestAPIItemsAreTenantIsolated(t *testing.T) {
 }
 
 func TestSecurityHeadersAndMetrics(t *testing.T) {
+	testutil.ChdirRepoRoot(t)
 	fx := testutil.NewFixture(t)
 	router := routes.Setup(fx.DB, configs.Config{AppEnv: "production", AppSecret: "s", AppSecrets: []string{"s"}, JWTSecret: "j", JWTSecrets: []string{"j"}, SessionName: "s"})
 	res := httptest.NewRecorder()
@@ -68,6 +73,66 @@ func TestSecurityHeadersAndMetrics(t *testing.T) {
 	}
 	if res.Header().Get("Strict-Transport-Security") == "" {
 		t.Fatal("missing hsts")
+	}
+}
+
+func TestWebLoginPersistsSessionWithRotatedSecrets(t *testing.T) {
+	testutil.ChdirRepoRoot(t)
+	fx := testutil.NewFixture(t)
+	hash, err := bcrypt.GenerateFromPassword([]byte("admin123"), bcrypt.DefaultCost)
+	if err != nil {
+		t.Fatalf("hash password: %v", err)
+	}
+	if err := fx.DB.Model(&fx.User).Update("password_hash", string(hash)).Error; err != nil {
+		t.Fatalf("update password: %v", err)
+	}
+	router := routes.Setup(fx.DB, configs.Config{
+		AppEnv:        "development",
+		AppSecret:     "change-this-secret-in-production",
+		AppSecrets:    []string{"change-this-secret-in-production", "previous-secret-during-rotation"},
+		JWTSecret:     "jwt-secret",
+		JWTSecrets:    []string{"jwt-secret"},
+		SessionName:   "haridy_session",
+		SessionMaxAge: 28800,
+		SessionSecure: false,
+	})
+
+	form := url.Values{"username": {"admin"}, "password": {"admin123"}}
+	login := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/login", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	router.ServeHTTP(login, req)
+
+	if login.Code != http.StatusFound {
+		t.Fatalf("expected login redirect, got %d body=%s", login.Code, login.Body.String())
+	}
+	if location := login.Header().Get("Location"); location != "/dashboard" {
+		t.Fatalf("expected redirect to /dashboard, got %q", location)
+	}
+	cookies := login.Result().Cookies()
+	if len(cookies) == 0 {
+		t.Fatal("expected login to set session cookie")
+	}
+	var sessionCookie *http.Cookie
+	for _, cookie := range cookies {
+		if cookie.Name == "haridy_session" {
+			sessionCookie = cookie
+			break
+		}
+	}
+	if sessionCookie == nil {
+		t.Fatalf("missing haridy_session cookie; got %v", cookies)
+	}
+	if sessionCookie.Path != "/" || !sessionCookie.HttpOnly || sessionCookie.Secure {
+		t.Fatalf("unexpected local session cookie options: path=%q httponly=%t secure=%t", sessionCookie.Path, sessionCookie.HttpOnly, sessionCookie.Secure)
+	}
+
+	dashboard := httptest.NewRecorder()
+	dashboardReq := httptest.NewRequest(http.MethodGet, "/dashboard", nil)
+	dashboardReq.AddCookie(sessionCookie)
+	router.ServeHTTP(dashboard, dashboardReq)
+	if dashboard.Code != http.StatusOK {
+		t.Fatalf("expected dashboard 200 with saved session, got %d location=%q body=%s", dashboard.Code, dashboard.Header().Get("Location"), dashboard.Body.String())
 	}
 }
 

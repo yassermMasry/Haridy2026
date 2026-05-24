@@ -3,6 +3,7 @@ package services
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"haridy2026/internal/models"
@@ -25,6 +26,46 @@ func (s *ERPService) Warehouses() []models.Warehouse {
 	var warehouses []models.Warehouse
 	s.db.Preload("Branch").Order("name asc").Find(&warehouses)
 	return warehouses
+}
+
+func (s *ERPService) CreateWarehouse(tenantID, branchID uint, name, code string) error {
+	name = strings.TrimSpace(name)
+	code = strings.TrimSpace(code)
+	if name == "" {
+		return errors.New("warehouse name is required")
+	}
+	if code == "" {
+		return errors.New("warehouse code is required")
+	}
+
+	var branch models.Branch
+	branchQuery := s.db.Where("deleted_at IS NULL")
+	if tenantID > 0 {
+		branchQuery = branchQuery.Where("tenant_id = ?", tenantID)
+	}
+	if branchID > 0 {
+		branchQuery = branchQuery.Where("id = ?", branchID)
+	}
+	if err := branchQuery.Order("name asc").First(&branch).Error; err != nil {
+		return errors.New("valid branch is required")
+	}
+
+	var count int64
+	if err := s.db.Model(&models.Warehouse{}).Where("code = ?", code).Count(&count).Error; err != nil {
+		return err
+	}
+	if count > 0 {
+		return errors.New("warehouse code already exists")
+	}
+
+	warehouse := models.Warehouse{
+		TenantID: branch.TenantID,
+		BranchID: branch.ID,
+		Name:     name,
+		Code:     code,
+		IsActive: true,
+	}
+	return s.db.Create(&warehouse).Error
 }
 
 func (s *ERPService) Transfer(itemID, fromWarehouseID, toWarehouseID uint, qty float64, userID uint) error {
@@ -97,13 +138,16 @@ func (s *ERPService) GenerateNotifications() error {
 	})
 }
 
-func (s *ERPService) ReceiptVoucher(customerID uint, amount float64, description string, userID uint) (*models.ReceiptVoucher, error) {
+func (s *ERPService) ReceiptVoucher(tenantID *uint, customerID uint, amount float64, description string, userID uint) (*models.ReceiptVoucher, error) {
 	if amount <= 0 {
 		return nil, errors.New("invalid amount")
 	}
+	if err := NewUsageLimitService(s.db).CheckOperationLimit(tenantID); err != nil {
+		return nil, err
+	}
 	var voucher models.ReceiptVoucher
 	err := s.db.Transaction(func(tx *gorm.DB) error {
-		voucher = models.ReceiptVoucher{Number: fmt.Sprintf("RV-%s", time.Now().Format("20060102150405")), CustomerID: &customerID, Amount: amount, Description: description, UserID: userID}
+		voucher = models.ReceiptVoucher{TenantID: tenantID, Number: fmt.Sprintf("RV-%s", time.Now().Format("20060102150405")), CustomerID: &customerID, Amount: amount, Description: description, UserID: userID}
 		if err := tx.Create(&voucher).Error; err != nil {
 			return err
 		}
@@ -116,13 +160,16 @@ func (s *ERPService) ReceiptVoucher(customerID uint, amount float64, description
 	return &voucher, err
 }
 
-func (s *ERPService) PaymentVoucher(supplierID uint, amount float64, description string, userID uint) (*models.PaymentVoucher, error) {
+func (s *ERPService) PaymentVoucher(tenantID *uint, supplierID uint, amount float64, description string, userID uint) (*models.PaymentVoucher, error) {
 	if amount <= 0 {
 		return nil, errors.New("invalid amount")
 	}
+	if err := NewUsageLimitService(s.db).CheckOperationLimit(tenantID); err != nil {
+		return nil, err
+	}
 	var voucher models.PaymentVoucher
 	err := s.db.Transaction(func(tx *gorm.DB) error {
-		voucher = models.PaymentVoucher{Number: fmt.Sprintf("PV-%s", time.Now().Format("20060102150405")), SupplierID: &supplierID, Amount: amount, Description: description, UserID: userID}
+		voucher = models.PaymentVoucher{TenantID: tenantID, Number: fmt.Sprintf("PV-%s", time.Now().Format("20060102150405")), SupplierID: &supplierID, Amount: amount, Description: description, UserID: userID}
 		if err := tx.Create(&voucher).Error; err != nil {
 			return err
 		}

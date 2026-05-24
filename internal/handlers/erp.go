@@ -25,8 +25,25 @@ func NewERPHandler(erp *services.ERPService, items *services.ItemService, custom
 func (h *ERPHandler) Warehouses(c *gin.Context) {
 	view := c.MustGet("view").(gin.H)
 	view["warehouses"] = h.erp.Warehouses()
+	view["branches"] = h.erp.Branches()
 	view["items"] = h.items.List("", 1).Items
 	c.HTML(http.StatusOK, "erp/warehouses.html", view)
+}
+
+func (h *ERPHandler) CreateWarehouse(c *gin.Context) {
+	err := h.erp.CreateWarehouse(
+		middleware.CurrentTenantID(c),
+		parseUint(c.PostForm("branch_id")),
+		c.PostForm("name"),
+		c.PostForm("code"),
+	)
+	if err != nil {
+		middleware.SetFlash(sessions.Default(c), err.Error())
+		c.Redirect(http.StatusFound, "/warehouses")
+		return
+	}
+	middleware.SetFlash(sessions.Default(c), "تم إضافة المخزن")
+	c.Redirect(http.StatusFound, "/warehouses")
 }
 
 func (h *ERPHandler) Transfer(c *gin.Context) {
@@ -49,7 +66,12 @@ func (h *ERPHandler) NewReceipt(c *gin.Context) {
 }
 
 func (h *ERPHandler) CreateReceipt(c *gin.Context) {
-	voucher, err := h.erp.ReceiptVoucher(parseUint(c.PostForm("customer_id")), parseFloat(c.PostForm("amount")), c.PostForm("description"), middleware.CurrentUserID(c))
+	tenantID := middleware.CurrentTenantID(c)
+	var tenantPtr *uint
+	if tenantID > 0 {
+		tenantPtr = &tenantID
+	}
+	voucher, err := h.erp.ReceiptVoucher(tenantPtr, parseUint(c.PostForm("customer_id")), parseFloat(c.PostForm("amount")), c.PostForm("description"), middleware.CurrentUserID(c))
 	if err != nil {
 		middleware.SetFlash(sessions.Default(c), err.Error())
 		c.Redirect(http.StatusFound, "/vouchers/receipt/new")
@@ -72,7 +94,12 @@ func (h *ERPHandler) NewPayment(c *gin.Context) {
 }
 
 func (h *ERPHandler) CreatePayment(c *gin.Context) {
-	voucher, err := h.erp.PaymentVoucher(parseUint(c.PostForm("supplier_id")), parseFloat(c.PostForm("amount")), c.PostForm("description"), middleware.CurrentUserID(c))
+	tenantID := middleware.CurrentTenantID(c)
+	var tenantPtr *uint
+	if tenantID > 0 {
+		tenantPtr = &tenantID
+	}
+	voucher, err := h.erp.PaymentVoucher(tenantPtr, parseUint(c.PostForm("supplier_id")), parseFloat(c.PostForm("amount")), c.PostForm("description"), middleware.CurrentUserID(c))
 	if err != nil {
 		middleware.SetFlash(sessions.Default(c), err.Error())
 		c.Redirect(http.StatusFound, "/vouchers/payment/new")

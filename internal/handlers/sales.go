@@ -37,6 +37,11 @@ func (h *SalesHandler) Create(c *gin.Context) {
 
 func (h *SalesHandler) Store(c *gin.Context) {
 	_ = c.Request.ParseForm()
+	tenantID := middleware.CurrentTenantID(c)
+	var tenantPtr *uint
+	if tenantID > 0 {
+		tenantPtr = &tenantID
+	}
 	itemIDs := c.Request.PostForm["item_id[]"]
 	quantities := c.Request.PostForm["quantity[]"]
 	prices := c.Request.PostForm["price[]"]
@@ -53,7 +58,7 @@ func (h *SalesHandler) Store(c *gin.Context) {
 		lines = append(lines, services.SaleLineInput{ItemID: itemID, Quantity: parseFloat(quantities[i]), UnitPrice: price})
 	}
 	invoice, err := h.service.Create(services.SaleInput{
-		UserID: middleware.CurrentUserID(c), CustomerID: parseUint(c.PostForm("customer_id")), PaymentType: c.PostForm("payment_type"), Discount: parseFloat(c.PostForm("discount")), Tax: parseFloat(c.PostForm("tax")), PaidCash: parseFloat(c.PostForm("paid_cash")), Lines: lines,
+		TenantID: tenantPtr, UserID: middleware.CurrentUserID(c), CustomerID: parseUint(c.PostForm("customer_id")), PaymentType: c.PostForm("payment_type"), Discount: parseFloat(c.PostForm("discount")), Tax: parseFloat(c.PostForm("tax")), PaidCash: parseFloat(c.PostForm("paid_cash")), Lines: lines,
 	})
 	if err != nil {
 		middleware.SetFlash(sessions.Default(c), err.Error())

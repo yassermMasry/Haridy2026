@@ -425,6 +425,7 @@ type PurchaseReturnItem struct {
 
 type ReceiptVoucher struct {
 	ID          uint   `gorm:"primaryKey"`
+	TenantID    *uint  `gorm:"index"`
 	Number      string `gorm:"size:40;uniqueIndex;not null"`
 	BranchID    *uint  `gorm:"index"`
 	CustomerID  *uint  `gorm:"index"`
@@ -437,6 +438,7 @@ type ReceiptVoucher struct {
 
 type PaymentVoucher struct {
 	ID          uint   `gorm:"primaryKey"`
+	TenantID    *uint  `gorm:"index"`
 	Number      string `gorm:"size:40;uniqueIndex;not null"`
 	BranchID    *uint  `gorm:"index"`
 	SupplierID  *uint  `gorm:"index"`
@@ -791,12 +793,16 @@ type RefreshToken struct {
 }
 
 type LicenseKey struct {
-	ID        uint       `gorm:"primaryKey"`
-	TenantID  *uint      `gorm:"index"`
-	Key       string     `gorm:"size:120;uniqueIndex;not null"`
-	Status    string     `gorm:"size:30;not null;default:'active';index"`
-	ExpiresAt *time.Time `gorm:"index"`
-	CreatedAt time.Time
+	ID            uint       `gorm:"primaryKey"`
+	TenantID      *uint      `gorm:"index"`
+	Key           string     `gorm:"size:120;uniqueIndex"`
+	KeyHash       string     `gorm:"size:120;uniqueIndex"`
+	PlanCode      string     `gorm:"size:50;not null;default:'yearly';index"`
+	MaxOperations int64      `gorm:"not null;default:250"`
+	Status        string     `gorm:"size:30;not null;default:'active';index"`
+	ExpiresAt     *time.Time `gorm:"index"`
+	UsedAt        *time.Time `gorm:"index"`
+	CreatedAt     time.Time
 }
 
 type SystemUpdate struct {

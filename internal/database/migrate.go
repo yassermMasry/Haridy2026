@@ -7,7 +7,7 @@ import (
 )
 
 func AutoMigrate(db *gorm.DB) error {
-	return db.AutoMigrate(
+	if err := db.AutoMigrate(
 		&models.Tenant{},
 		&models.Plan{},
 		&models.Subscription{},
@@ -73,5 +73,8 @@ func AutoMigrate(db *gorm.DB) error {
 		&models.RefreshToken{},
 		&models.LicenseKey{},
 		&models.SystemUpdate{},
-	)
+	); err != nil {
+		return err
+	}
+	return migrateLicenseKeys(db)
 }

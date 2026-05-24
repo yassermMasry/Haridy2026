@@ -1,0 +1,65 @@
+{{define "items/price_list.html"}}
+{{template "app_start" .}}
+<div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+  <h2 class="text-2xl font-bold">قائمة الأسعار</h2>
+</div>
+
+<div class="mt-4 grid gap-3 md:grid-cols-4">
+  <div class="rounded-md border border-amber-200 bg-amber-50 p-4"><div class="text-sm text-amber-700">بدون سعر بيع</div><div class="text-2xl font-bold">{{.priceList.Stats.NoPrice}}</div></div>
+  <div class="rounded-md border border-red-200 bg-red-50 p-4"><div class="text-sm text-red-700">خسارة بيع</div><div class="text-2xl font-bold">{{.priceList.Stats.Loss}}</div></div>
+  <div class="rounded-md border border-yellow-200 bg-yellow-50 p-4"><div class="text-sm text-yellow-700">هامش ضعيف</div><div class="text-2xl font-bold">{{.priceList.Stats.Weak}}</div></div>
+  <div class="rounded-md border border-green-200 bg-green-50 p-4"><div class="text-sm text-green-700">جيد</div><div class="text-2xl font-bold">{{.priceList.Stats.Good}}</div></div>
+</div>
+
+<form class="mt-4 grid gap-2 rounded-md border bg-white p-4 md:grid-cols-[1fr_auto_auto]" method="get">
+  <input class="form-input" name="q" value="{{.priceList.Query}}" placeholder="بحث بالاسم أو الكود أو الباركود">
+  <select class="form-input" name="status">
+    <option value="all" {{if eq .priceList.Filter "all"}}selected{{end}}>الكل</option>
+    <option value="no_price" {{if eq .priceList.Filter "no_price"}}selected{{end}}>بدون سعر بيع</option>
+    <option value="loss" {{if eq .priceList.Filter "loss"}}selected{{end}}>خسارة بيع</option>
+    <option value="weak" {{if eq .priceList.Filter "weak"}}selected{{end}}>هامش ضعيف</option>
+    <option value="good" {{if eq .priceList.Filter "good"}}selected{{end}}>جيد</option>
+  </select>
+  <button class="btn-secondary">بحث</button>
+</form>
+
+<div class="mt-5 overflow-x-auto rounded-lg border bg-white">
+  <table class="min-w-full text-sm">
+    <thead class="bg-slate-100 text-slate-600">
+      <tr>
+        <th>كود الصنف</th>
+        <th>اسم الصنف</th>
+        <th>التصنيف</th>
+        <th>سعر الشراء</th>
+        <th>متوسط التكلفة</th>
+        <th>سعر البيع الحالي</th>
+        <th>هامش الربح</th>
+        <th>حالة السعر</th>
+        <th>تعديل سريع</th>
+      </tr>
+    </thead>
+    <tbody>
+      {{range .priceList.Rows}}
+      <tr class="border-t align-top">
+        <td>{{.Item.Code}}</td>
+        <td>{{.Item.Name}}</td>
+        <td>{{if .Item.Category}}{{.Item.Category.Name}}{{else}}-{{end}}</td>
+        <td>{{printf "%.2f" .Item.PurchasePrice}}</td>
+        <td>{{if .AverageCost}}{{printf "%.2f" .AverageCost}}{{else}}-{{end}}</td>
+        <td>{{printf "%.2f" .Item.SalePrice}}</td>
+        <td>{{printf "%.2f" .MarginPercent}}%</td>
+        <td><span class="rounded-full px-3 py-1 text-xs font-bold {{.StatusClass}}">{{.StatusLabel}}</span>{{if .UpdateWarningLabel}}<div class="mt-1 text-xs text-red-700">{{.UpdateWarningLabel}}</div>{{end}}</td>
+        <td>
+          <form method="post" action="/price-list/items/{{.Item.ID}}/update-price" class="flex min-w-48 gap-2">
+            <input type="hidden" name="_csrf" value="{{$.csrf}}">
+            <input class="form-input" name="sale_price" type="number" step="0.01" min="0" value="{{.Item.SalePrice}}">
+            <button class="btn-primary">حفظ</button>
+          </form>
+        </td>
+      </tr>
+      {{else}}<tr><td colspan="9" class="p-8 text-center text-slate-500">لا توجد أصناف</td></tr>{{end}}
+    </tbody>
+  </table>
+</div>
+{{template "app_end" .}}
+{{end}}

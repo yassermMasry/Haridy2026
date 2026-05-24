@@ -21,12 +21,8 @@ func Setup(db *gorm.DB, cfg configs.Config) *gin.Engine {
 	}
 	r := gin.New()
 	r.Use(gin.Recovery(), gin.Logger(), middleware.Observability(), middleware.SecureHeaders(), middleware.RateLimit(180, 60_000_000_000), middleware.TenantResolver(db))
-	sessionSecrets := make([][]byte, 0, len(cfg.AppSecrets))
-	for _, secret := range cfg.AppSecrets {
-		sessionSecrets = append(sessionSecrets, []byte(secret))
-	}
-	store := cookie.NewStore(sessionSecrets...)
-	store.Options(sessions.Options{Path: "/", MaxAge: 28800, HttpOnly: true, Secure: cfg.AppEnv == "production", SameSite: http.SameSiteLaxMode})
+	store := cookie.NewStore(sessionKeyPairs(cfg.AppSecrets)...)
+	store.Options(sessions.Options{Path: "/", MaxAge: sessionMaxAge(cfg), HttpOnly: true, Secure: cfg.SessionSecure, SameSite: http.SameSiteLaxMode})
 	r.Use(sessions.Sessions(cfg.SessionName, store))
 	r.Use(middleware.CSRFMiddleware(), middleware.ViewData())
 	r.Static("/static", "./static")
@@ -53,6 +49,7 @@ func Setup(db *gorm.DB, cfg configs.Config) *gin.Engine {
 	redisClient := cache.NewRedis(cfg)
 	api := handlers.NewAPIHandler(db, authService, cfg.JWTSecret, redisClient)
 	commercial := handlers.NewCommercialHandler(commercialService)
+	activation := handlers.NewActivationHandler(services.NewActivationService(db))
 
 	r.GET("/", commercial.Landing)
 	r.GET("/healthz", func(c *gin.Context) { c.JSON(http.StatusOK, gin.H{"status": "ok"}) })
@@ -67,6 +64,10 @@ func Setup(db *gorm.DB, cfg configs.Config) *gin.Engine {
 	protected := r.Group("/")
 	protected.Use(middleware.AuthRequired())
 	protected.GET("/dashboard", dashboard.Index)
+	protected.GET("/activation", activation.Show)
+	protected.POST("/activation", activation.Activate)
+	protected.GET("/price-list", items.PriceList)
+	protected.POST("/price-list/items/:id/update-price", items.UpdatePrice)
 	protected.GET("/items", items.Index)
 	protected.GET("/items/new", items.Create)
 	protected.POST("/items", items.Store)
@@ -100,6 +101,7 @@ func Setup(db *gorm.DB, cfg configs.Config) *gin.Engine {
 	protected.GET("/reports", reports.Index)
 	protected.GET("/reports/export/:name", reports.Export)
 	protected.GET("/warehouses", middleware.PermissionRequired(db, "admin.manage"), erp.Warehouses)
+	protected.POST("/warehouses", middleware.PermissionRequired(db, "admin.manage"), erp.CreateWarehouse)
 	protected.POST("/warehouses/transfer", middleware.PermissionRequired(db, "edit.manage"), erp.Transfer)
 	protected.POST("/branch/current", erp.SetBranch)
 	protected.GET("/vouchers/receipt/new", erp.NewReceipt)
@@ -132,4 +134,28 @@ func Setup(db *gorm.DB, cfg configs.Config) *gin.Engine {
 	v1.POST("/einvoices/:invoice_id", commercial.EInvoice)
 
 	return r
+}
+
+func sessionKeyPairs(secrets []string) [][]byte {
+	if len(secrets) == 0 {
+		secrets = []string{"change-me"}
+	}
+	keyPairs := make([][]byte, 0, len(secrets)*2)
+	for _, secret := range secrets {
+		if secret == "" {
+			continue
+		}
+		keyPairs = append(keyPairs, []byte(secret), nil)
+	}
+	if len(keyPairs) == 0 {
+		return [][]byte{[]byte("change-me"), nil}
+	}
+	return keyPairs
+}
+
+func sessionMaxAge(cfg configs.Config) int {
+	if cfg.SessionMaxAge > 0 {
+		return cfg.SessionMaxAge
+	}
+	return 28800
 }

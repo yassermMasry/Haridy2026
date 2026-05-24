@@ -1,12 +1,17 @@
 package database
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"errors"
+	"strings"
 	"time"
 
 	"haridy2026/internal/models"
 
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 func Seed(db *gorm.DB) error {
@@ -44,14 +49,29 @@ func Seed(db *gorm.DB) error {
 		return err
 	}
 	var admin models.User
-	if err := db.Where("username = ?", "admin").FirstOrCreate(&admin, models.User{
-		TenantID:        &tenant.ID,
-		Username:        "admin",
-		PasswordHash:    string(hash),
-		Role:            models.RoleAdmin,
-		CurrentBranchID: &branch.ID,
-	}).Error; err != nil {
-		return err
+	if err := db.Unscoped().Where("username = ?", "admin").First(&admin).Error; err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
+		admin = models.User{
+			TenantID:        &tenant.ID,
+			Username:        "admin",
+			PasswordHash:    string(hash),
+			Role:            models.RoleAdmin,
+			CurrentBranchID: &branch.ID,
+		}
+		if err := db.Create(&admin).Error; err != nil {
+			return err
+		}
+	} else {
+		admin.TenantID = &tenant.ID
+		admin.Role = models.RoleAdmin
+		admin.CurrentBranchID = &branch.ID
+		admin.PasswordHash = string(hash)
+		admin.DeletedAt = gorm.DeletedAt{}
+		if err := db.Unscoped().Save(&admin).Error; err != nil {
+			return err
+		}
 	}
 	var tenantUser models.TenantUser
 	if err := db.Where("tenant_id = ? AND user_id = ?", tenant.ID, admin.ID).FirstOrCreate(&tenantUser, models.TenantUser{TenantID: tenant.ID, UserID: admin.ID, IsOwner: true}).Error; err != nil {
@@ -106,8 +126,16 @@ func Seed(db *gorm.DB) error {
 	if err := db.Model(&adminRole).Association("Permissions").Replace(allPerms); err != nil {
 		return err
 	}
-	if err := db.Model(&admin).Association("Roles").Append(&adminRole); err != nil {
+	var adminRoleCount int64
+	if err := db.Model(&models.UserRole{}).
+		Where("user_id = ? AND rbac_role_id = ?", admin.ID, adminRole.ID).
+		Count(&adminRoleCount).Error; err != nil {
 		return err
+	}
+	if adminRoleCount == 0 {
+		if err := db.Model(&admin).Association("Roles").Append(&adminRole); err != nil {
+			return err
+		}
 	}
 	var cashierRole models.RBACRole
 	if err := db.Where("name = ?", "cashier").FirstOrCreate(&cashierRole, models.RBACRole{Name: "cashier", Description: "Sales and treasury access"}).Error; err != nil {
@@ -144,9 +172,26 @@ func Seed(db *gorm.DB) error {
 	if err := db.Where("tenant_id = ? AND name = ?", tenant.ID, now.Format("2006")).FirstOrCreate(&fy, models.FiscalYear{TenantID: tenant.ID, Name: now.Format("2006"), StartDate: time.Date(now.Year(), 1, 1, 0, 0, 0, 0, time.UTC), EndDate: time.Date(now.Year(), 12, 31, 23, 59, 59, 0, time.UTC)}).Error; err != nil {
 		return err
 	}
-	var license models.LicenseKey
-	if err := db.Where("key = ?", "DEMO-LICENSE").FirstOrCreate(&license, models.LicenseKey{TenantID: &tenant.ID, Key: "DEMO-LICENSE", Status: "active"}).Error; err != nil {
+	demoLicenseHash := hashSeedLicenseCode("DEMO-LICENSE")
+	var licenseCount int64
+	if err := db.Model(&models.LicenseKey{}).
+		Where("key_hash = ? OR (tenant_id = ? AND plan_code = ? AND status = ?)", demoLicenseHash, tenant.ID, "starter", "used").
+		Count(&licenseCount).Error; err != nil {
 		return err
 	}
+	if licenseCount == 0 {
+		license := models.LicenseKey{TenantID: &tenant.ID, Key: demoLicenseHash, KeyHash: demoLicenseHash, PlanCode: "starter", MaxOperations: 100000, Status: "used"}
+		if err := db.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "key_hash"}}, DoNothing: true}).Create(&license).Error; err != nil {
+			return err
+		}
+	}
 	return nil
+}
+
+func hashSeedLicenseCode(code string) string {
+	normalized := strings.ToUpper(strings.TrimSpace(code))
+	normalized = strings.ReplaceAll(normalized, " ", "")
+	normalized = strings.ReplaceAll(normalized, "-", "")
+	sum := sha256.Sum256([]byte(normalized))
+	return hex.EncodeToString(sum[:])
 }

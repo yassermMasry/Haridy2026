@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"log/slog"
 	"net/http"
 
 	"haridy2026/internal/middleware"
@@ -33,13 +34,19 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	if user.CurrentBranchID != nil {
 		session.Set("current_branch_id", int(*user.CurrentBranchID))
 	}
-	_ = session.Save()
+	if err := session.Save(); err != nil {
+		slog.Error("save login session", "error", err)
+		c.String(http.StatusInternalServerError, "failed to save session")
+		return
+	}
 	c.Redirect(http.StatusFound, "/dashboard")
 }
 
 func (h *AuthHandler) Logout(c *gin.Context) {
 	session := sessions.Default(c)
 	session.Clear()
-	_ = session.Save()
+	if err := session.Save(); err != nil {
+		slog.Error("save logout session", "error", err)
+	}
 	c.Redirect(http.StatusFound, "/login")
 }

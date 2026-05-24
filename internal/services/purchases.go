@@ -18,6 +18,7 @@ type PurchaseLineInput struct {
 }
 
 type PurchaseInput struct {
+	TenantID    *uint
 	UserID      uint
 	SupplierID  uint
 	PaymentType string
@@ -52,9 +53,12 @@ func (s *PurchaseService) Create(input PurchaseInput) (*models.PurchaseInvoice, 
 	if len(input.Lines) == 0 {
 		return nil, errors.New("add at least one item")
 	}
+	if err := NewUsageLimitService(s.db).CheckOperationLimit(input.TenantID); err != nil {
+		return nil, err
+	}
 	var invoice models.PurchaseInvoice
 	err := s.db.Transaction(func(tx *gorm.DB) error {
-		invoice = models.PurchaseInvoice{Number: fmt.Sprintf("PINV-%s", time.Now().Format("20060102150405")), SupplierID: input.SupplierID, UserID: input.UserID, PaymentType: input.PaymentType, Discount: input.Discount, Tax: input.Tax, PaidCash: input.PaidCash}
+		invoice = models.PurchaseInvoice{TenantID: input.TenantID, Number: fmt.Sprintf("PINV-%s", time.Now().Format("20060102150405")), SupplierID: input.SupplierID, UserID: input.UserID, PaymentType: input.PaymentType, Discount: input.Discount, Tax: input.Tax, PaidCash: input.PaidCash}
 		if invoice.PaymentType == "" {
 			invoice.PaymentType = "cash"
 		}
